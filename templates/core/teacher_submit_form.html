@@ -1,0 +1,301 @@
+{% extends 'base.html' %}
+
+{% block title %}Submit Syllabus - {{ submission.class_name }} {{ submission.subject_name }}{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+
+<div class="container" style="max-width: 950px;">
+    <!-- Top Nav Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <span class="badge bg-primary rounded-pill mb-1">Examination Submission Portal</span>
+            <h3 class="fw-bold mb-0">{{ submission.class_name }} - {{ submission.subject_name }}</h3>
+            <span class="text-muted small">Exam: <strong>{{ submission.exam.title }}</strong> ({{ submission.exam.academic_year }})</span>
+        </div>
+        <a href="{% url 'teacher_portal' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> Back to Portal
+        </a>
+    </div>
+
+    {% if is_readonly %}
+    <div class="alert alert-success border border-success fw-bold shadow-sm p-3 mb-4">
+        <i class="bi bi-shield-check me-2 fs-5 text-success"></i> APPROVED & LOCKED: This syllabus portion & question pattern has been Approved by the Principal. It is now read-only and locked from further edits.
+    </div>
+    {% elif submission.status == 'REVISION' %}
+    <div class="alert alert-warning border border-warning fw-bold shadow-sm p-3 mb-4">
+        <h6 class="fw-bold mb-1 text-warning-emphasis"><i class="bi bi-exclamation-triangle-fill me-2 fs-5 text-warning"></i> REVISION REQUESTED BY PRINCIPAL:</h6>
+        <p class="mb-0 text-dark">{{ submission.principal_remarks|default:"Please review and update your syllabus portion or question pattern as requested by the Principal." }}</p>
+    </div>
+    {% elif submission.principal_remarks %}
+    <div class="alert alert-info border border-info shadow-sm mb-4">
+        <h6 class="fw-bold mb-1"><i class="bi bi-chat-left-dots-fill me-2"></i>Remarks from Principal:</h6>
+        <p class="mb-0 text-dark">{{ submission.principal_remarks }}</p>
+    </div>
+    {% endif %}
+
+    <form method="post" id="portionForm">
+        {% csrf_token %}
+        
+        <!-- Step 1: Teacher & General Info -->
+        <div class="card glass-card p-4 mb-4">
+            <h5 class="fw-bold text-primary mb-3"><i class="bi bi-1-circle-fill me-2"></i>Teacher & Exam Details</h5>
+            
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label font-semibold">Teacher Full Name <span class="text-danger">*</span></label>
+                    {{ form.teacher_name }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label font-semibold">Total Marks</label>
+                    {{ form.total_marks }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label font-semibold">Duration (Mins)</label>
+                    {{ form.duration_minutes }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Syllabus Portion -->
+        <div class="card glass-card p-4 mb-4">
+            <h5 class="fw-bold text-primary mb-3"><i class="bi bi-2-circle-fill me-2"></i>Syllabus Portion Covered</h5>
+            
+            <div class="mb-3">
+                <label class="form-label font-semibold">Chapters / Units / Topics Included <span class="text-danger">*</span></label>
+                {{ form.syllabus_portion }}
+                <div class="form-text">List all chapters, topics, sub-topics, or practical experiments included in this exam.</div>
+            </div>
+
+            <div class="mb-0">
+                <label class="form-label font-semibold">Instructions for Students (Optional)</label>
+                {{ form.instructions_for_students }}
+                <div class="form-text">e.g. Scientific calculator allowed, Geometry kit required, Section A is compulsory.</div>
+            </div>
+        </div>
+
+        <!-- Step 3: Question Paper Blueprint / Pattern -->
+        <div class="card glass-card p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="fw-bold text-primary mb-0"><i class="bi bi-3-circle-fill me-2"></i>Question Paper Blueprint / Pattern</h5>
+                    <p class="text-muted small mb-0">Specify marks distribution section by section</p>
+                </div>
+                <div>
+                    <div id="liveMarksBadge" class="badge bg-secondary fs-6 px-3 py-2 shadow-sm">
+                        Calculating Marks...
+                    </div>
+                </div>
+            </div>
+
+            {{ formset.management_form }}
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle" id="patternTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 45%;">Question Type</th>
+                            <th style="width: 15%;">No. of Qs</th>
+                            <th style="width: 15%;">Marks / Q</th>
+                            <th style="width: 18%;" class="text-center">Section Total (Read-Only)</th>
+                            <th style="width: 7%;" class="text-center">Delete</th>
+                        </tr>
+                    </thead>
+                    <tbody id="formsetBody">
+                        <!-- Hidden Empty Template Row for Dynamic Row Addition -->
+                        <tr class="pattern-row d-none" id="emptyRowTemplate">
+                            <td>
+                                {{ formset.empty_form.id }}
+                                {{ formset.empty_form.question_type }}
+                            </td>
+                            <td>{{ formset.empty_form.number_of_questions }}</td>
+                            <td>{{ formset.empty_form.marks_per_question }}</td>
+                            <td>
+                                <input type="text" class="form-control section-total-input bg-light text-center fw-bold text-primary" readonly value="0 Marks" tabindex="-1">
+                            </td>
+                            <td class="text-center">
+                                <div class="d-none">
+                                    {{ formset.empty_form.DELETE }}
+                                </div>
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-circle px-2 py-1 shadow-sm row-del-btn" onclick="deletePatternRow(this)" title="Delete row">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </td>
+                        </tr>
+
+                        {% for item_form in formset %}
+                        <tr class="pattern-row">
+                            <td>
+                                {{ item_form.id }}
+                                {{ item_form.question_type }}
+                            </td>
+                            <td>{{ item_form.number_of_questions }}</td>
+                            <td>{{ item_form.marks_per_question }}</td>
+                            <td>
+                                <input type="text" class="form-control section-total-input bg-light text-center fw-bold text-primary" readonly value="0 Marks" tabindex="-1">
+                            </td>
+                            <td class="text-center">
+                                {% if formset.can_delete %}
+                                    <div class="d-none">
+                                        {{ item_form.DELETE }}
+                                    </div>
+                                    <button type="button" class="btn btn-outline-danger btn-sm rounded-circle px-2 py-1 shadow-sm row-del-btn" onclick="deletePatternRow(this)" title="Delete row">
+                                        <i class="bi bi-trash-fill"></i>
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                {% if not is_readonly %}
+                <button type="button" class="btn btn-outline-primary btn-sm" id="addRowBtn">
+                    <i class="bi bi-plus-circle me-1"></i> Add Another Section Row
+                </button>
+                {% else %}
+                <div></div>
+                {% endif %}
+                <div class="text-muted small">
+                    Make sure total marks in sections equal <strong>{{ submission.total_marks }} Marks</strong>.
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Button Card -->
+        {% if not is_readonly %}
+        <div class="card glass-card p-4 border-primary text-end">
+            <button type="submit" class="btn btn-teacher-portal btn-lg px-5">
+                <i class="bi bi-send-check-fill me-2"></i> Submit Syllabus & Question Pattern
+            </button>
+        </div>
+        {% else %}
+        <div class="card glass-card p-4 border-success text-center">
+            <div>
+                <span class="badge bg-success fs-5 px-4 py-2 shadow-sm"><i class="bi bi-lock-fill me-2"></i> Approved & Locked by Principal</span>
+                <p class="text-muted small mb-0 mt-2">This portion has been approved. Contact the Principal if any changes are required.</p>
+            </div>
+        </div>
+        {% endif %}
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function calculateTotals() {
+    let totalSum = 0;
+    const rows = document.querySelectorAll('.pattern-row');
+    rows.forEach(row => {
+        if (row.style.display === 'none' || row.id === 'emptyRowTemplate') return;
+        
+        const qTypeInput = row.querySelector('input[name$="-question_type"]');
+        const qType = qTypeInput ? qTypeInput.value.trim() : '';
+
+        const numInput = row.querySelector('input[name$="-number_of_questions"]');
+        const marksInput = row.querySelector('input[name$="-marks_per_question"]');
+        const totalInput = row.querySelector('.section-total-input');
+        
+        const num = parseFloat(numInput ? numInput.value : 0) || 0;
+        const marks = parseFloat(marksInput ? marksInput.value : 0) || 0;
+        const secTotal = num * marks;
+        
+        if (totalInput) {
+            totalInput.value = secTotal > 0 ? `${secTotal} Marks` : '0 Marks';
+        }
+
+        if (qType !== '') {
+            totalSum += secTotal;
+        }
+    });
+    
+    // Auto-update Total Marks input field to match calculated sum (only if not readonly)
+    const paperTotalInput = document.getElementById('id_total_marks');
+    if (paperTotalInput && totalSum > 0 && !paperTotalInput.disabled) {
+        paperTotalInput.value = Math.round(totalSum);
+    }
+
+    const badge = document.getElementById('liveMarksBadge');
+    if (badge) {
+        badge.className = 'badge bg-success fs-6 px-3 py-2 shadow-sm';
+        badge.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> Total Calculated Marks: ${totalSum} Marks`;
+    }
+}
+
+
+function deletePatternRow(btn) {
+    if ({{ is_readonly|yesno:"true,false" }}) return;
+    const row = btn.closest('.pattern-row');
+    if (!row) return;
+    
+    const deleteChk = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+    if (deleteChk) {
+        deleteChk.checked = true;
+    }
+    row.style.display = 'none';
+    calculateTotals();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const isReadonly = {{ is_readonly|yesno:"true,false" }};
+    const addRowBtn = document.getElementById('addRowBtn');
+    const formsetBody = document.getElementById('formsetBody');
+    const totalFormsInput = document.getElementById('id_pattern_items-TOTAL_FORMS');
+
+    // If APPROVED (is_readonly), disable all form input elements!
+    if (isReadonly) {
+        document.querySelectorAll('#portionForm input, #portionForm textarea, #portionForm select, .row-del-btn').forEach(el => {
+            el.disabled = true;
+        });
+    }
+
+    // Attach live listeners for mark calculations & question type inputs
+    document.addEventListener('input', function(e) {
+        if (e.target.name && (e.target.name.endsWith('-question_type') || e.target.name.endsWith('-number_of_questions') || e.target.name.endsWith('-marks_per_question') || e.target.id === 'id_total_marks')) {
+            calculateTotals();
+        }
+    });
+
+    function addNewRow() {
+        if (isReadonly) return;
+        const currentCount = parseInt(totalFormsInput.value);
+        const templateRow = document.getElementById('emptyRowTemplate');
+        if (!templateRow) return;
+
+        const newRow = templateRow.cloneNode(true);
+        newRow.removeAttribute('id');
+        newRow.classList.remove('d-none');
+
+        // Replace __prefix__ with currentCount in form field names and IDs
+        newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, currentCount);
+
+        formsetBody.appendChild(newRow);
+        totalFormsInput.value = currentCount + 1;
+        calculateTotals();
+    }
+
+    if (addRowBtn) {
+        addRowBtn.addEventListener('click', addNewRow);
+    }
+
+    // Automatically add 1 row if table starts empty (and not readonly)
+    if (!isReadonly) {
+        const existingVisibleRows = formsetBody.querySelectorAll('.pattern-row:not(#emptyRowTemplate)');
+        if (existingVisibleRows.length === 0) {
+            addNewRow();
+        }
+    }
+
+    // Initial calculation on load
+    calculateTotals();
+});
+</script>
+{% endblock %}
+
+
+
+
+

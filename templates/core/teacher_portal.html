@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+
+{% block title %}Teacher Portal - Select Division & Subject{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block extra_css %}
+<!-- Tom Select Bootstrap 5 Theme -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<style>
+.ts-wrapper .ts-control {
+    border-radius: 0.5rem !important;
+    padding: 0.6rem 0.85rem !important;
+    font-size: 0.95rem !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+}
+.ts-wrapper.focus .ts-control {
+    border-color: #4f46e5 !important;
+    box-shadow: 0 0 0 0.25rem rgba(79, 70, 229, 0.15) !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 950px;">
+    <!-- Hero Banner -->
+    <div class="card glass-card p-4 p-md-5 mb-4 text-white" style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);">
+        <div class="row align-items-center">
+            <div class="col-md-8 mb-3 mb-md-0">
+                <span class="badge bg-info text-dark font-semibold px-3 py-1.5 rounded-pill mb-2">No Login Required</span>
+                <h2 class="display-6 fw-bold mb-2">Teacher Syllabus & Pattern Portal</h2>
+                <p class="text-white-50 mb-0">Select your Examination, Division, and Subject below to add or update syllabus portion details.</p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <i class="bi bi-journal-check display-1 text-info opacity-75"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step-by-Step Selection Card -->
+    <div class="card glass-card p-4 p-md-5 mb-4 border-primary">
+        <h4 class="fw-bold mb-1 text-primary"><i class="bi bi-sliders me-2"></i>Select Exam, Division & Subject</h4>
+        <p class="text-muted small mb-4">Search or choose your assigned subject to view existing portion details or add new ones</p>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label font-semibold">1. Select Examination <span class="text-danger">*</span></label>
+                    <select name="exam_id" id="examSelect" required>
+                        <option value="">-- Choose Exam --</option>
+                        {% for ex in active_exams %}
+                            <option value="{{ ex.id }}">{{ ex.title }} ({{ ex.academic_year }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label font-semibold">2. Select Division / Class <span class="text-danger">*</span></label>
+                    <select name="division_id" id="divisionSelect" required>
+                        <option value="">-- Choose Division --</option>
+                        {% for div in divisions %}
+                            <option value="{{ div.id }}">{{ div }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label font-semibold">3. Select Subject <span class="text-danger">*</span></label>
+                    <select name="subject_id" id="subjectSelect" required>
+                        <option value="">-- Select Exam & Division First --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-4 text-end">
+                <button type="submit" class="btn btn-teacher-portal btn-lg px-5">
+                    <i class="bi bi-arrow-right-circle-fill me-2"></i> Continue to Syllabus Form
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Active Requests Quick Grid -->
+    <div class="card glass-card p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="fw-bold mb-0"><i class="bi bi-grid-3x3-gap text-primary me-2"></i>Quick Access to Allocated Subjects</h5>
+                <p class="text-muted small mb-0">Or click directly on any allocated subject below to open its form</p>
+            </div>
+            <span class="badge bg-light text-dark border">{{ active_requests.count }} Active Portion Records</span>
+        </div>
+
+        <div class="row g-3">
+            {% for req in active_requests %}
+            <div class="col-md-6 col-lg-4">
+                <a href="{% url 'teacher_submit_portion' req.id %}" class="text-decoration-none">
+                    <div class="card border p-3 hover-shadow transition-all h-100 bg-white">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <span class="badge bg-secondary mb-1" style="font-size: 0.7rem;">{{ req.exam.title }}</span>
+                                <h6 class="fw-bold text-dark mb-0 fs-6">{{ req.class_name }}</h6>
+                                <span class="fw-bold text-primary">{{ req.subject_name }}</span>
+                            </div>
+                            {% if req.status == 'PENDING' %}
+                                <span class="badge-status badge-pending">Pending</span>
+                            {% elif req.status == 'SUBMITTED' %}
+                                <span class="badge-status badge-submitted">Submitted</span>
+                            {% elif req.status == 'APPROVED' %}
+                                <span class="badge-status badge-approved">Approved</span>
+                            {% elif req.status == 'REVISION' %}
+                                <span class="badge-status badge-revision">Revision</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="mt-auto pt-2 border-top d-flex justify-content-between align-items-center text-muted small">
+                            <span><i class="bi bi-clock me-1"></i> {{ req.total_marks }} Marks</span>
+                            <span class="text-primary font-semibold">Fill / Edit <i class="bi bi-arrow-right"></i></span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center py-4 text-muted">
+                <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                No subjects allocated yet. Use the dropdown selection above to start!
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Tom Select JS -->
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const allocMap = {{ alloc_map_json|safe }};
+
+    // Initialize Tom Select Searchable Dropdowns
+    const tsExam = new TomSelect('#examSelect', {
+        create: false,
+        placeholder: '-- Choose Exam --'
+    });
+
+    const tsDiv = new TomSelect('#divisionSelect', {
+        create: false,
+        placeholder: '-- Choose Division --'
+    });
+
+    const tsSubj = new TomSelect('#subjectSelect', {
+        create: false,
+        placeholder: '-- Select Exam & Division First --'
+    });
+
+    function updateSubjectDropdown() {
+        const examId = tsExam.getValue();
+        const divId = tsDiv.getValue();
+        const nativeSubjectSelect = document.getElementById('subjectSelect');
+
+        nativeSubjectSelect.innerHTML = '';
+        tsSubj.clearOptions();
+        tsSubj.clear();
+
+        if (!examId || !divId) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '-- Select Exam & Division First --';
+            nativeSubjectSelect.appendChild(opt);
+            tsSubj.sync();
+            return;
+        }
+
+        const key = `${examId}_${divId}`;
+        const allocatedSubjects = allocMap[key] || [];
+
+        if (allocatedSubjects.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '-- No subjects allocated for this division --';
+            nativeSubjectSelect.appendChild(opt);
+        } else {
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = '-- Choose Subject --';
+            nativeSubjectSelect.appendChild(defaultOpt);
+
+            allocatedSubjects.forEach(subj => {
+                const opt = document.createElement('option');
+                opt.value = subj.id;
+                opt.textContent = subj.code ? `${subj.name} (${subj.code})` : subj.name;
+                nativeSubjectSelect.appendChild(opt);
+
+                tsSubj.addOption({ value: String(subj.id), text: opt.textContent });
+            });
+        }
+
+        tsSubj.sync();
+        tsSubj.refreshOptions(false);
+    }
+
+    tsExam.on('change', updateSubjectDropdown);
+    tsDiv.on('change', updateSubjectDropdown);
+
+    // Initial trigger
+    updateSubjectDropdown();
+});
+
+</script>
+{% endblock %}
+
+

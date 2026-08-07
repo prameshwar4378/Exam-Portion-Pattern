@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block title %}Review Submission - {{ submission.subject_name }} ({{ submission.class_name }}){% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 900px;">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div class="d-flex align-items-center">
+            <a href="{% url 'exam_detail_dashboard' submission.exam.id %}" class="btn btn-sm btn-outline-secondary rounded-circle me-3" title="Back to Exam Dashboard">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <div>
+                <h3 class="fw-bold mb-0">Review Syllabus & Question Pattern</h3>
+                <span class="text-muted small">{{ submission.exam.title }} | {{ submission.class_name }} - {{ submission.subject_name }}</span>
+            </div>
+        </div>
+
+        <div>
+            <a href="{% url 'print_submission' submission.id %}" target="_blank" class="btn btn-outline-secondary">
+                <i class="bi bi-printer me-1"></i> Print Preview
+            </a>
+        </div>
+    </div>
+
+    <!-- Details Card -->
+    <div class="card glass-card p-4 mb-4">
+        <div class="row g-3 border-bottom pb-3 mb-3">
+            <div class="col-md-3">
+                <small class="text-muted d-block font-semibold">Teacher Name</small>
+                <span class="fw-bold text-dark fs-6">{{ submission.teacher_name }}</span>
+            </div>
+            <div class="col-md-3">
+                <small class="text-muted d-block font-semibold">Total Marks / Time</small>
+                <span class="fw-bold text-dark fs-6">{{ submission.total_marks }} Marks ({{ submission.duration_minutes }} mins)</span>
+            </div>
+            <div class="col-md-3">
+                <small class="text-muted d-block font-semibold">Submission Date</small>
+                <span class="fw-bold text-dark fs-6">
+                    {% if submission.submitted_at %}{{ submission.submitted_at|date:"M d, Y h:i A" }}{% else %}Not submitted yet{% endif %}
+                </span>
+            </div>
+            <div class="col-md-3">
+                <small class="text-muted d-block font-semibold">Current Status</small>
+                {% if submission.status == 'PENDING' %}
+                    <span class="badge-status badge-pending">Pending</span>
+                {% elif submission.status == 'SUBMITTED' %}
+                    <span class="badge-status badge-submitted">Submitted</span>
+                {% elif submission.status == 'APPROVED' %}
+                    <span class="badge-status badge-approved">Approved</span>
+                {% elif submission.status == 'REVISION' %}
+                    <span class="badge-status badge-revision">Revision Requested</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <h5 class="fw-bold text-primary mb-2"><i class="bi bi-journal-text me-2"></i>Syllabus Portion Covered</h5>
+            <div class="p-3 bg-light rounded-3 text-secondary" style="white-space: pre-line; min-height: 100px;">
+                {% if submission.syllabus_portion %}{{ submission.syllabus_portion }}{% else %}<em class="text-muted">No syllabus portion submitted yet.</em>{% endif %}
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <h5 class="fw-bold text-primary mb-2"><i class="bi bi-card-checklist me-2"></i>Instructions for Students</h5>
+            <div class="p-3 bg-light rounded-3 text-secondary" style="white-space: pre-line;">
+                {% if submission.instructions_for_students %}{{ submission.instructions_for_students }}{% else %}<em class="text-muted">No special instructions provided.</em>{% endif %}
+            </div>
+        </div>
+
+        <!-- Question Pattern Table -->
+        <div class="mb-4">
+            <h5 class="fw-bold text-primary mb-3"><i class="bi bi-grid-3x3-gap me-2"></i>Question Pattern Breakdown</h5>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Section / Part</th>
+                            <th>Question Type</th>
+                            <th class="text-center">No. of Questions</th>
+                            <th class="text-center">Marks / Ques.</th>
+                            <th class="text-end">Total Section Marks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in submission.pattern_items.all %}
+                        <tr>
+                            <td class="fw-bold">{{ item.section_name }}</td>
+                            <td>{{ item.question_type }}</td>
+                            <td class="text-center">{{ item.number_of_questions }}</td>
+                            <td class="text-center">{{ item.marks_per_question }}</td>
+                            <td class="text-end fw-bold">{{ item.total_marks }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-3">No question pattern items submitted yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="4" class="text-end">Total Calculated Marks:</th>
+                            <th class="text-end text-primary fs-5 fw-bold">{{ submission.total_calculated_marks }} / {{ submission.total_marks }}</th>
+                        </tr>
+                    </tfoot>
+
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Principal Action Card -->
+    <div class="card glass-card p-4 border-primary">
+        <h5 class="fw-bold mb-3"><i class="bi bi-patch-check-fill text-primary me-2"></i>Principal Decision & Remarks</h5>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="principal_remarks" class="form-label font-semibold">Remarks / Feedback to Teacher</label>
+                <textarea name="principal_remarks" id="principal_remarks" class="form-control" rows="3" placeholder="Enter optional notes e.g., 'Approved without changes' or 'Please adjust Section B marks to total 80 marks'">{{ submission.principal_remarks }}</textarea>
+            </div>
+            
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Teachers will see your remarks if revision is requested.</span>
+                <div class="d-flex gap-2">
+                    <button type="submit" name="action" value="request_revision" class="btn btn-outline-danger">
+                        <i class="bi bi-arrow-repeat me-1"></i> Request Revision
+                    </button>
+                    <button type="submit" name="action" value="approve" class="btn btn-success px-4">
+                        <i class="bi bi-check-circle me-1"></i> Approve Portion & Pattern
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

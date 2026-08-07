@@ -1,0 +1,391 @@
+{% extends 'base.html' %}
+
+{% block title %}Official Syllabus Paper & Time Table - {{ exam.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+@page {
+    size: A4 portrait;
+    margin: 12mm 15mm 12mm 15mm;
+}
+
+.official-paper {
+    background-color: #ffffff;
+    color: #000000;
+    font-family: 'Outfit', 'Times New Roman', 'Arial', sans-serif;
+    padding: 2.2rem;
+    margin-bottom: 2.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 270mm;
+    box-sizing: border-box;
+}
+
+.official-header h3 {
+    font-weight: 800;
+    font-size: 1.7rem;
+    margin-bottom: 0.15rem;
+    color: #000;
+    letter-spacing: -0.3px;
+}
+
+.official-header h4 {
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin-bottom: 0.25rem;
+    color: #111;
+}
+
+.official-header h5 {
+    font-weight: 800;
+    font-size: 1.2rem;
+    margin-bottom: 1.2rem;
+    color: #000;
+}
+
+/* Strict Official Table Styling */
+.table-official {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border: 2px solid #000000 !important;
+    margin-bottom: 1.2rem;
+}
+
+.table-official th, .table-official td {
+    border: 1.5px solid #000000 !important;
+    padding: 0.65rem 0.85rem !important;
+    vertical-align: top;
+    color: #000000 !important;
+}
+
+.table-official th {
+    background-color: #f2f2f2 !important;
+    text-align: center;
+    font-weight: 800;
+    font-size: 0.92rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.sub-title {
+    font-weight: 800;
+    font-size: 1rem;
+    text-transform: uppercase;
+    color: #000000;
+}
+
+.format-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.marks-cell {
+    text-align: center;
+    vertical-align: middle !important;
+    font-weight: 800;
+    font-size: 1.15rem;
+}
+
+.timetable-header {
+    text-align: center;
+    font-weight: 800;
+    font-size: 0.98rem;
+    text-transform: uppercase;
+    margin-top: 1.2rem;
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.5px;
+}
+
+.note-text {
+    font-weight: 800;
+    font-size: 0.9rem;
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+    line-height: 1.4;
+}
+
+.signature-row {
+    margin-top: auto;
+    padding-top: 1.5rem;
+}
+
+.signature-box {
+    text-align: center;
+}
+
+.signature-box .sig-line {
+    border-top: 1.5px solid #000000;
+    width: 200px;
+    margin: 0 auto 0.4rem auto;
+}
+
+.signature-box p {
+    font-weight: 800;
+    font-size: 0.95rem;
+    margin: 0;
+    color: #000000;
+}
+
+/* Print Specific Rules for A4 Single-Page Fit per Division */
+@media print {
+    .no-print, .d-none-print {
+        display: none !important;
+    }
+    
+    html, body, body.has-sidebar, body.has-sidebar main, body.has-sidebar.sidebar-collapsed main, body.has-sidebar.sidebar-expanded main, main, .container, .container-fluid {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        font-family: 'Times New Roman', 'Arial', sans-serif !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 100% !important;
+    }
+
+    .official-paper {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: 270mm !important;
+        max-height: 270mm !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+    }
+
+    .official-paper:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+    }
+
+    .table-official {
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+    }
+
+    .signature-row {
+        margin-top: auto !important;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-3" style="max-width: 960px;">
+
+    <!-- Print & Division Filter Action Bar -->
+    <div class="card no-print p-3 mb-4 border-0 shadow-sm rounded-3 bg-white">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <!-- Left: Back Button & Title -->
+            <div class="d-flex align-items-center gap-2">
+                <a href="{% url 'principal_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
+                    <i class="bi bi-arrow-left me-1"></i> Dashboard
+                </a>
+                <span class="text-secondary opacity-50">|</span>
+                <span class="fw-bold text-dark fs-6"><i class="bi bi-file-earmark-pdf-fill text-danger me-1.5"></i>Official Report Sheets</span>
+            </div>
+
+            <!-- Right: Division Selector & Action Buttons -->
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="d-flex align-items-center">
+                    <label for="divisionFilterSelect" class="form-label mb-0 me-2 small fw-bold text-secondary text-nowrap">Filter Division:</label>
+                    <select id="divisionFilterSelect" class="form-select form-select-sm rounded-pill font-semibold shadow-sm" style="min-width: 170px; border-color: #cbd5e1;" onchange="filterDivision(this.value)">
+                        <option value="all" selected>All Divisions ({{ class_reports|length }})</option>
+                        {% for report in class_reports %}
+                            <option value="{{ report.class_name|slugify }}">{{ report.class_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <button onclick="window.print()" class="btn btn-primary btn-sm rounded-pill px-3.5 py-1.5 fw-bold text-white shadow-sm" style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border: none;" id="printBtn">
+                    <i class="bi bi-printer-fill me-1.5"></i> <span id="printBtnText">Print / Download PDF (All Divisions)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {% for report in class_reports %}
+    <!-- Printable Official Sheet (Single A4 Page per Division) -->
+    <div class="official-paper" data-division-slug="{{ report.class_name|slugify }}">
+
+        <div>
+            <!-- School Header -->
+            <div class="text-center official-header">
+                <h3>{{ exam.school_name }}</h3>
+                <h4>{{ exam.title }} {{ exam.header_subtitle }}</h4>
+                <h5>{{ report.class_name }}</h5>
+            </div>
+
+            <!-- 4-Column Syllabus & Format Table -->
+            <table class="table-official">
+                <thead>
+                    <tr>
+                        <th style="width: 18%;">SUBJECT</th>
+                        <th style="width: 44%;">SYLLABUS</th>
+                        <th style="width: 28%;">FORMAT</th>
+                        <th style="width: 10%;">MARKS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in report.submissions %}
+                    <tr>
+                        <td class="sub-title align-middle">
+                            {{ sub.subject_name }}
+                        </td>
+                        {% if sub.status == 'APPROVED' %}
+                            <td style="white-space: pre-line; line-height: 1.45; font-size: 0.92rem;">
+                                {{ sub.syllabus_portion|default:"Syllabus details pending." }}
+                            </td>
+                            <td>
+                                {% for item in sub.pattern_items.all %}
+                                <div class="format-item">
+                                    <span>{% if item.question_type %}{{ item.question_type }}{% else %}Question Pattern{% endif %}</span>
+                                    <span class="fw-bold ms-2">{{ item.total_marks|floatformat:"0" }}M</span>
+                                </div>
+                                {% empty %}
+                                <span class="text-muted small">Format pending</span>
+                                {% endfor %}
+                            </td>
+                        {% elif sub.status == 'SUBMITTED' or sub.status == 'REVISION' %}
+                            <td colspan="2" class="text-center align-middle bg-light text-dark fw-bold py-3 border border-dark">
+                                <div class="d-inline-flex flex-column align-items-center">
+                                    <span class="fw-bold fs-7 mb-1 text-dark">
+                                        ⚠️ Pending Verification by Principal
+                                    </span>
+                                    <span class="small text-secondary fw-normal">
+                                        {% if sub.status == 'SUBMITTED' %}
+                                            Submitted by Teacher — awaiting Principal Approval.
+                                        {% else %}
+                                            Pending Teacher Revision (Principal requested changes).
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            </td>
+                        {% else %}
+                            <!-- PENDING / UN-SUBMITTED -->
+                            <td class="text-muted fst-italic">
+                                Syllabus details pending.
+                            </td>
+                            <td class="text-muted fst-italic">
+                                Format pending
+                            </td>
+                        {% endif %}
+                        <td class="marks-cell align-middle">
+                            {{ sub.total_marks }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">No subjects added for this grade yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- Exam Timetable Grid -->
+            {% if report.timetable %}
+            <div class="timetable-header">
+                {{ exam.title }} TIMETABLE-{{ exam.academic_year }}
+            </div>
+            <table class="table-official text-center">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">DATE</th>
+                        {% for item in report.timetable %}
+                            <th>{{ item.date|date:"d/m/Y" }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="fw-bold">SUBJECT</td>
+                        {% for item in report.timetable %}
+                            <td class="fw-bold">{{ item.subject }}</td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+
+        <div>
+            <!-- Important Note -->
+            <div class="note-text text-center">
+                {{ exam.note_text }}
+            </div>
+
+            <!-- Signature Footer -->
+            <div class="row signature-row">
+                <div class="col-6">
+                    <div class="signature-box text-start">
+                        <div class="sig-line" style="margin: 0 0 0.4rem 0;"></div>
+                        <p>Class Teacher</p>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="signature-box text-end">
+                        <div class="sig-line" style="margin: 0 0 0.4rem auto;"></div>
+                        <p>Principal.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="card glass-card text-center p-5">
+        <i class="bi bi-inbox display-4 text-muted mb-3"></i>
+        <h4>No Submissions Found for This Exam</h4>
+        <p class="text-muted">Perform Subject Customization or Add Requests first to generate the report sheet.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterDivision(selectedSlug) {
+    const papers = document.querySelectorAll('.official-paper');
+    const printBtnText = document.getElementById('printBtnText');
+    
+    papers.forEach(paper => {
+        const slug = paper.getAttribute('data-division-slug');
+        if (selectedSlug === 'all' || slug === selectedSlug) {
+            paper.classList.remove('d-none-print');
+            paper.style.display = 'flex';
+        } else {
+            paper.classList.add('d-none-print');
+            paper.style.display = 'none';
+        }
+    });
+
+    if (selectedSlug === 'all') {
+        if (printBtnText) printBtnText.innerText = 'Print / Download PDF (All Divisions)';
+    } else {
+        const selectedOpt = document.querySelector(`#divisionFilterSelect option[value="${selectedSlug}"]`);
+        const label = selectedOpt ? selectedOpt.text : 'Selected Division';
+        if (printBtnText) printBtnText.innerText = `Print / Download PDF (${label})`;
+    }
+}
+</script>
+{% endblock %}
+
+

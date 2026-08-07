@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ active_exam.title }} Dashboard - Exam Portion Pattern{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-lg-4">
+    <!-- Header Row -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div class="d-flex align-items-center">
+            <a href="{% url 'principal_dashboard' %}" class="btn btn-outline-secondary rounded-circle me-3" title="Back to All Exams Overview">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <h2 class="fw-bold mb-0">{{ active_exam.title }}</h2>
+                    <span class="badge bg-primary font-monospace">{{ active_exam.academic_year }}</span>
+                    {% if active_exam.is_active %}
+                        <span class="badge bg-success">ACTIVE</span>
+                    {% else %}
+                        <span class="badge bg-secondary">INACTIVE (CLOSED)</span>
+                    {% endif %}
+                </div>
+                <p class="text-muted mb-0">Detailed syllabus portion & question pattern dashboard</p>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap">
+            {% if active_exam.is_active %}
+                <a href="{% url 'toggle_exam_active' active_exam.id %}" class="btn btn-outline-danger btn-sm px-2.5 py-1">
+                    <i class="bi bi-eye-slash-fill me-1"></i> Make Inactive
+                </a>
+            {% else %}
+                <a href="{% url 'toggle_exam_active' active_exam.id %}" class="btn btn-outline-success btn-sm px-2.5 py-1">
+                    <i class="bi bi-eye-fill me-1"></i> Activate Exam
+                </a>
+            {% endif %}
+            <a href="{% url 'customize_exam_subjects' active_exam.id %}" class="btn btn-warning text-dark fw-bold btn-sm px-2.5 py-1">
+                <i class="bi bi-sliders me-1"></i> Subject Customization
+            </a>
+            <a href="{% url 'compiled_exam_report' active_exam.id %}" class="btn btn-dark btn-sm px-2.5 py-1">
+                <i class="bi bi-file-earmark-pdf me-1"></i> View Compiled Syllabus
+            </a>
+
+        </div>
+    </div>
+
+    <!-- Stat Summary Cards for this Exam (Compact 5-Column Colored Grids) -->
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-5 g-2.5 mb-4">
+        <div class="col">
+            <div class="stat-card-colored stat-bg-total">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-white-50 text-uppercase small fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Total Requests</span>
+                    <i class="bi bi-files fs-5 text-white-50"></i>
+                </div>
+                <h3 class="fw-bold mb-0 text-white">{{ stats.total }}</h3>
+            </div>
+        </div>
+        <div class="col">
+            <div class="stat-card-colored stat-bg-pending">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-white-50 text-uppercase small fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Pending</span>
+                    <i class="bi bi-clock-history fs-5 text-white-50"></i>
+                </div>
+                <h3 class="fw-bold mb-0 text-white">{{ stats.pending }}</h3>
+            </div>
+        </div>
+        <div class="col">
+            <div class="stat-card-colored stat-bg-submitted">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-white-50 text-uppercase small fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Submitted</span>
+                    <i class="bi bi-send-check fs-5 text-white-50"></i>
+                </div>
+                <h3 class="fw-bold mb-0 text-white">{{ stats.submitted }}</h3>
+            </div>
+        </div>
+        <div class="col">
+            <div class="stat-card-colored stat-bg-approved">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-white-50 text-uppercase small fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Approved</span>
+                    <i class="bi bi-patch-check fs-5 text-white-50"></i>
+                </div>
+                <h3 class="fw-bold mb-0 text-white">{{ stats.approved }}</h3>
+            </div>
+        </div>
+        <div class="col">
+            <div class="stat-card-colored stat-bg-revision">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-white-50 text-uppercase small fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Revision Req.</span>
+                    <i class="bi bi-arrow-repeat fs-5 text-white-50"></i>
+                </div>
+                <h3 class="fw-bold mb-0 text-white">{{ stats.revision }}</h3>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Portion Requests Grouped by Class/Grade (Collapsible Accordions) -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h5 class="fw-bold mb-0">Syllabus Portion Collection List</h5>
+            <span class="text-muted small">Grouped by Class & Grade for <strong>{{ active_exam.title }}</strong></span>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="expandAllGroups()">
+                <i class="bi bi-arrows-expand me-1"></i> Expand All
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="collapseAllGroups()">
+                <i class="bi bi-arrows-collapse me-1"></i> Collapse All
+            </button>
+            <a href="{% url 'customize_exam_subjects' active_exam.id %}" class="btn btn-sm btn-warning text-dark font-semibold">
+                <i class="bi bi-sliders me-1"></i> Customize Subjects & Divisions
+            </a>
+        </div>
+    </div>
+
+    {% for group in submission_groups %}
+    <div class="card glass-card mb-3 overflow-hidden shadow-sm border">
+        <!-- Class Group Header (Click to Expand / Collapse) -->
+        <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center" 
+             data-bs-toggle="collapse" 
+             data-bs-target="#classGroup-{{ forloop.counter }}" 
+             aria-expanded="true" 
+             aria-controls="classGroup-{{ forloop.counter }}"
+             style="cursor: pointer; user-select: none;">
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-chevron-down text-primary fs-5"></i>
+                <h5 class="fw-bold text-dark mb-0 fs-6">
+                    <i class="bi bi-mortarboard-fill text-primary me-2"></i>{{ group.class_name }}
+                </h5>
+                <span class="badge bg-primary-subtle text-primary fw-bold rounded-pill">{{ group.total_count }} Subjects</span>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                {% if group.approved_cnt > 0 %}
+                    <span class="badge bg-success-subtle text-success border border-success px-2.5 py-1 small fw-semibold">
+                        <i class="bi bi-check-circle-fill me-1"></i>{{ group.approved_cnt }} Approved
+                    </span>
+                {% endif %}
+                {% if group.submitted_cnt > 0 %}
+                    <span class="badge bg-info-subtle text-info border border-info px-2.5 py-1 small fw-semibold">
+                        <i class="bi bi-send-fill me-1"></i>{{ group.submitted_cnt }} Submitted
+                    </span>
+                {% endif %}
+                {% if group.pending_cnt > 0 %}
+                    <span class="badge bg-warning-subtle text-warning border border-warning px-2.5 py-1 small fw-semibold">
+                        <i class="bi bi-clock-history me-1"></i>{{ group.pending_cnt }} Pending
+                    </span>
+                {% endif %}
+                {% if group.revision_cnt > 0 %}
+                    <span class="badge bg-danger-subtle text-danger border border-danger px-2.5 py-1 small fw-semibold">
+                        <i class="bi bi-arrow-repeat me-1"></i>{{ group.revision_cnt }} Revision
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Collapsible Class Subjects Table -->
+        <div id="classGroup-{{ forloop.counter }}" class="collapse show class-group-collapse">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light border-bottom">
+                            <tr class="small text-uppercase text-muted">
+                                <th style="width: 25%;" class="ps-4">Subject</th>
+                                <th style="width: 22%;">Teacher Assigned</th>
+                                <th style="width: 15%;">Status</th>
+                                <th style="width: 15%;">Marks / Time</th>
+                                <th style="width: 13%;">Teacher Link</th>
+                                <th style="width: 10%;" class="text-end pe-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sub in group.submissions %}
+                            <tr>
+                                <td class="ps-4">
+                                    <span class="fw-bold text-primary fs-6">{{ sub.subject_name }}</span>
+                                </td>
+                                <td>
+                                    <i class="bi bi-person me-1 text-muted"></i> {{ sub.teacher_name }}
+                                </td>
+                                <td>
+                                    {% if sub.status == 'PENDING' %}
+                                        <span class="badge-status badge-pending"><i class="bi bi-hourglass-split"></i> Pending</span>
+                                    {% elif sub.status == 'SUBMITTED' %}
+                                        <span class="badge-status badge-submitted"><i class="bi bi-envelope-paper"></i> Submitted</span>
+                                    {% elif sub.status == 'APPROVED' %}
+                                        <span class="badge-status badge-approved"><i class="bi bi-check-all"></i> Approved</span>
+                                    {% elif sub.status == 'REVISION' %}
+                                        <span class="badge-status badge-revision"><i class="bi bi-exclamation-octagon"></i> Revision</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted fw-semibold">{{ sub.total_marks }} Marks | {{ sub.duration_minutes }} mins</small>
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm copy-link-group" style="max-width: 220px;">
+                                        <input type="text" class="form-control text-muted small" value="{{ request.scheme }}://{{ request.get_host }}/teacher/submit/{{ sub.id }}/" readonly id="link-{{ sub.id }}">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="copyLink('link-{{ sub.id }}')" title="Copy teacher link">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                        <a href="{% url 'teacher_submit_portion' sub.id %}" target="_blank" class="btn btn-outline-info" title="Open teacher submission page directly">
+                                            <i class="bi bi-box-arrow-up-right"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'review_submission' sub.id %}" class="btn btn-outline-primary" title="Review & Approve">
+                                            <i class="bi bi-eye me-1"></i> Review
+                                        </a>
+                                        {% if sub.status == 'SUBMITTED' or sub.status == 'APPROVED' %}
+                                        <a href="{% url 'print_submission' sub.id %}" class="btn btn-outline-secondary" title="Print View">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="card glass-card p-5 text-center">
+        <i class="bi bi-inbox display-5 d-block text-muted mb-2"></i>
+        <h5>No portion requests added for this exam yet.</h5>
+        <p class="text-muted">Perform Subject Customization or Add Requests to get started.</p>
+        <div class="mt-3">
+            <a href="{% url 'customize_exam_subjects' active_exam.id %}" class="btn btn-sm btn-warning text-dark font-semibold">
+                <i class="bi bi-sliders me-1"></i> Bulk Customize Subjects & Divisions
+            </a>
+        </div>
+
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyLink(elementId) {
+    const inputElement = document.getElementById(elementId);
+    inputElement.select();
+    inputElement.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(inputElement.value);
+    alert("Teacher link copied to clipboard! Share this link with the teacher.");
+}
+
+function expandAllGroups() {
+    document.querySelectorAll('.class-group-collapse').forEach(el => {
+        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(el);
+        bsCollapse.show();
+    });
+}
+
+function collapseAllGroups() {
+    document.querySelectorAll('.class-group-collapse').forEach(el => {
+        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(el);
+        bsCollapse.hide();
+    });
+}
+</script>
+{% endblock %}
+

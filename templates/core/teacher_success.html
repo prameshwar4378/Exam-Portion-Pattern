@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}Submission Received - {{ submission.subject_name }}{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+
+<div class="container" style="max-width: 650px;">
+    <div class="card glass-card p-4 p-md-5 my-5 text-center">
+        <div class="d-inline-flex align-items-center justify-content-center bg-success-subtle text-success rounded-circle p-3 mb-3 mx-auto" style="width: 80px; height: 80px; background: rgba(16, 185, 129, 0.15);">
+            <i class="bi bi-check-circle-fill display-4 text-success"></i>
+        </div>
+        
+        <h2 class="fw-bold mb-2">Submission Successful!</h2>
+        <p class="text-muted fs-6 mb-4">
+            Thank you, <strong>{{ submission.teacher_name }}</strong>. Your syllabus portion and question pattern breakdown for 
+            <strong>{{ submission.class_name }} - {{ submission.subject_name }}</strong> has been submitted to the Principal.
+        </p>
+
+        <div class="p-3 bg-light rounded-3 text-start mb-4">
+            <h6 class="fw-bold mb-2">Submission Summary:</h6>
+            <ul class="list-unstyled mb-0 small text-secondary">
+                <li class="mb-1"><i class="bi bi-journal-check me-2 text-primary"></i> <strong>Exam:</strong> {{ submission.exam.title }}</li>
+                <li class="mb-1"><i class="bi bi-clock me-2 text-primary"></i> <strong>Submitted At:</strong> {{ submission.submitted_at|date:"M d, Y h:i A" }}</li>
+                <li class="mb-1"><i class="bi bi-bar-chart me-2 text-primary"></i> <strong>Status:</strong> <span class="badge bg-primary">Submitted (Under Review)</span></li>
+            </ul>
+        </div>
+
+        <div class="d-flex justify-content-center gap-3">
+            <a href="{% url 'teacher_submit_portion' submission.id %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil me-1"></i> Edit Submission Again
+            </a>
+            <a href="{% url 'teacher_portal' %}" class="btn btn-teacher-portal">
+                <i class="bi bi-house me-1"></i> Back to Teacher Portal
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

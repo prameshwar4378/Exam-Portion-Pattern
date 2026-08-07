@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block title %}Print Syllabus - {{ submission.subject_name }} ({{ submission.class_name }}){% endblock %}
+
+{% block content %}
+<div class="container my-4" style="max-width: 850px;">
+    <!-- Floating Action Toolbar for Screen -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print bg-white p-3 rounded-3 shadow-sm border">
+        <div>
+            <a href="{% url 'review_submission' submission.id %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to Review
+            </a>
+        </div>
+        <button onclick="window.print()" class="btn btn-primary-custom btn-sm">
+            <i class="bi bi-printer me-1"></i> Print / Save as PDF
+        </button>
+    </div>
+
+    {% if submission.status != 'APPROVED' %}
+    <div class="alert alert-warning border-warning d-flex align-items-center mb-4 no-print">
+        <i class="bi bi-clock-history fs-3 me-3 text-warning"></i>
+        <div>
+            <h6 class="fw-bold mb-0">Pending Verification by Principal</h6>
+            <small class="text-dark">This portion request is pending approval by the Principal (Current Status: <strong>{{ submission.get_status_display }}</strong>).</small>
+        </div>
+    </div>
+    {% endif %}
+
+
+    <!-- Printable Paper Layout -->
+    <div class="bg-white p-5 border rounded-3 shadow-sm print-card">
+        <!-- School Header -->
+        <div class="text-center border-bottom pb-4 mb-4">
+            <h2 class="fw-bold mb-1 text-uppercase text-dark">{{ submission.exam.title }}</h2>
+            <h5 class="text-secondary font-semibold mb-1">SYLLABUS PORTION & QUESTION PATTERN</h5>
+            <p class="text-muted small mb-0">Academic Session: {{ submission.exam.academic_year }}</p>
+        </div>
+
+        <!-- Meta Grid -->
+        <div class="row g-3 mb-4 p-3 bg-light rounded border">
+            <div class="col-4">
+                <span class="text-muted small d-block">Class / Grade:</span>
+                <strong class="fs-6">{{ submission.class_name }}</strong>
+            </div>
+            <div class="col-4">
+                <span class="text-muted small d-block">Subject:</span>
+                <strong class="fs-6 text-primary">{{ submission.subject_name }}</strong>
+            </div>
+            <div class="col-4">
+                <span class="text-muted small d-block">Teacher Assigned:</span>
+                <strong class="fs-6">{{ submission.teacher_name }}</strong>
+            </div>
+            <div class="col-6 mt-2">
+                <span class="text-muted small d-block">Total Marks:</span>
+                <strong>{{ submission.total_marks }} Marks</strong>
+            </div>
+            <div class="col-6 mt-2">
+                <span class="text-muted small d-block">Time Duration:</span>
+                <strong>{{ submission.duration_minutes }} Minutes</strong>
+            </div>
+        </div>
+
+        <!-- Syllabus Portion Section -->
+        <div class="mb-4">
+            <h5 class="fw-bold border-bottom pb-2 text-dark">1. SYLLABUS PORTION</h5>
+            <div class="py-2 text-secondary" style="white-space: pre-line; line-height: 1.6;">
+                {{ submission.syllabus_portion|default:"No portion specified." }}
+            </div>
+        </div>
+
+        <!-- Instructions Section -->
+        {% if submission.instructions_for_students %}
+        <div class="mb-4">
+            <h5 class="fw-bold border-bottom pb-2 text-dark">2. GENERAL INSTRUCTIONS</h5>
+            <div class="py-2 text-secondary" style="white-space: pre-line; line-height: 1.5;">
+                {{ submission.instructions_for_students }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Question Pattern Section -->
+        <div class="mb-5">
+            <h5 class="fw-bold border-bottom pb-2 text-dark">3. QUESTION PAPER BLUEPRINT / PATTERN</h5>
+            <table class="table table-bordered align-middle mt-3">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 20%;">Section</th>
+                        <th style="width: 30%;">Question Type</th>
+                        <th class="text-center" style="width: 15%;">No. of Qs</th>
+                        <th class="text-center" style="width: 15%;">Marks / Q</th>
+                        <th class="text-end" style="width: 20%;">Total Marks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                        <td class="fw-bold">{{ item.section_name }}</td>
+                        <td>{{ item.question_type }}</td>
+
+
+                        <td class="text-center">{{ item.number_of_questions }}</td>
+                        <td class="text-center">{{ item.marks_per_question }}</td>
+                        <td class="text-end fw-bold">{{ item.total_marks }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">No pattern items provided.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-secondary">
+                        <th colspan="4" class="text-end fw-bold">TOTAL MARKS:</th>
+                        <th class="text-end fs-6 fw-bold text-dark">{{ submission.total_calculated_marks }} / {{ submission.total_marks }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- Signature Footer -->
+        <div class="row pt-5 mt-5 border-top">
+            <div class="col-6 text-center">
+                <p class="mb-5">_______________________</p>
+                <p class="fw-bold mb-0">Teacher Signature</p>
+                <small class="text-muted">({{ submission.teacher_name }})</small>
+            </div>
+            <div class="col-6 text-center">
+                <p class="mb-5">_______________________</p>
+                <p class="fw-bold mb-0">Principal Signature & Seal</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

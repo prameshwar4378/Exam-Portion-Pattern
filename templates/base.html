@@ -1,0 +1,166 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Exam Portion & Question Pattern System{% endblock %}</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="{% if user.is_authenticated %}has-sidebar sidebar-collapsed{% endif %}">
+
+    <!-- Professional Collapsible Left Sidebar Navigation -->
+    {% block navbar %}
+    {% if user.is_authenticated %}
+    <aside class="sidebar-pro collapsed no-print" id="mainSidebar">
+        <!-- Sidebar Header / Brand -->
+        <div class="sidebar-header d-flex align-items-center justify-content-between px-3 py-3">
+            <a class="sidebar-brand d-flex align-items-center text-decoration-none" href="{% url 'principal_dashboard' %}">
+                <!-- <i class="bi bi-journal-bookmark-fill text-info fs-3 me-3 brand-icon"></i> -->
+                <div class="brand-text">
+                    <span class="fw-bold text-white fs-6 d-block line-height-1">Syllabus Portal</span>
+                    <small class="text-white-50 fs-8">Principal Panel</small>
+                </div>
+            </a>
+            <button type="button" class="btn btn-sm btn-dark sidebar-toggle-btn border-0 text-white-50 p-1.5" onclick="toggleSidebar()" title="Toggle Sidebar Navigation">
+                <i class="bi bi-layout-sidebar-reverse fs-5" id="sidebarToggleIcon"></i>
+            </button>
+        </div>
+
+        <!-- Navigation Links -->
+        <div class="sidebar-menu py-3 flex-grow-1">
+            <ul class="nav nav-pills flex-column px-2 gap-2">
+                <li class="nav-item">
+                    <a class="nav-link sidebar-link sidebar-item-dashboard d-flex align-items-center {% if request.resolver_match.url_name == 'principal_dashboard' %}active{% endif %}" href="{% url 'principal_dashboard' %}" title="Principal Dashboard">
+                        <i class="bi bi-speedometer2 me-3 fs-5 nav-icon"></i>
+                        <span class="link-text">Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link sidebar-link sidebar-item-exam d-flex align-items-center {% if request.resolver_match.url_name == 'create_exam' %}active{% endif %}" href="{% url 'create_exam' %}" title="Create New Exam">
+                        <i class="bi bi-plus-circle me-3 fs-5 nav-icon"></i>
+                        <span class="link-text">New Exam</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link sidebar-link sidebar-item-subjects d-flex align-items-center {% if request.resolver_match.url_name == 'manage_subjects' %}active{% endif %}" href="{% url 'manage_subjects' %}" title="Manage Master Subjects">
+                        <i class="bi bi-book me-3 fs-5 nav-icon"></i>
+                        <span class="link-text">Master Subjects</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link sidebar-link sidebar-item-divisions d-flex align-items-center {% if request.resolver_match.url_name == 'manage_divisions' %}active{% endif %}" href="{% url 'manage_divisions' %}" title="Manage Master Divisions">
+                        <i class="bi bi-diagram-3 me-3 fs-5 nav-icon"></i>
+                        <span class="link-text">Master Divisions</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+
+        <!-- Sidebar Footer / User Profile & Logout -->
+        <div class="sidebar-footer p-2 m-2 border-0">
+            <div class="sidebar-user-card p-2.5 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center overflow-hidden">
+                    <div class="user-avatar text-white rounded-circle d-flex align-items-center justify-content-center me-2 fw-bold" style="width: 36px; height: 36px; min-width: 36px; background: linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%); box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3);">
+                        {{ user.username|slice:":1"|upper }}
+                    </div>
+                    <div class="user-info text-truncate">
+                        <span class="fw-bold text-white small d-block text-truncate">{{ user.username }}</span>
+                        <small class="text-white-50 fs-8 d-block">Principal</small>
+                    </div>
+                </div>
+                <a href="{% url 'logout' %}" class="btn btn-sm btn-outline-danger border-0 rounded-circle logout-btn p-1" title="Logout">
+                    <i class="bi bi-box-arrow-right fs-5"></i>
+                </a>
+            </div>
+        </div>
+    </aside>
+    {% endif %}
+
+    {% endblock navbar %}
+
+    <!-- Alert Messages -->
+    <div class="container mt-3 no-print alert-container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'error' or message.tags == 'danger' %}alert-danger border border-danger text-danger bg-danger-subtle fw-bold shadow-sm{% elif message.tags == 'success' %}alert-success border border-success text-success bg-success-subtle shadow-sm{% else %}alert-info border-info{% endif %} alert-dismissible fade show p-3" role="alert">
+                    {% if message.tags == 'error' or message.tags == 'danger' %}
+                        <i class="bi bi-exclamation-triangle-fill me-2 fs-5 text-danger"></i>
+                    {% elif message.tags == 'success' %}
+                        <i class="bi bi-check-circle-fill me-2 fs-5 text-success"></i>
+                    {% else %}
+                        <i class="bi bi-info-circle-fill me-2 fs-5 text-info"></i>
+                    {% endif %}
+                    <span>{{ message }}</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Main Content Block -->
+    <main class="flex-grow-1 py-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-top py-3 mt-auto no-print text-center text-muted small">
+        <div class="container d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
+            <div>
+                <span>Exam Syllabus Portion & Question Pattern Software &copy; {% now "Y" %}</span>
+            </div>
+            <div>
+                <span>Developed by <a href="https://prameshwar4378.github.io/My_Portfolio/" target="_blank" rel="noopener noreferrer" class="fw-bold text-decoration-none text-primary"><i class="bi bi-code-slash me-1"></i>Rameshwar Pawar</a></span>
+            </div>
+        </div>
+    </footer>
+
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById('mainSidebar');
+        if (!sidebar) return;
+
+        sidebar.classList.toggle('collapsed');
+        const isCollapsed = sidebar.classList.contains('collapsed');
+
+        document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+        document.body.classList.toggle('sidebar-expanded', !isCollapsed);
+
+        localStorage.setItem('sidebar_collapsed', isCollapsed ? 'true' : 'false');
+    }
+
+    // Restore sidebar state on load (Default is COLLAPSED by default!)
+    document.addEventListener('DOMContentLoaded', function() {
+        const sidebar = document.getElementById('mainSidebar');
+        if (!sidebar) return;
+
+        const savedState = localStorage.getItem('sidebar_collapsed');
+        // Default to COLLAPSED unless explicitly set to 'false'
+        const shouldBeCollapsed = (savedState !== 'false');
+
+        if (shouldBeCollapsed) {
+            sidebar.classList.add('collapsed');
+            document.body.classList.add('sidebar-collapsed');
+            document.body.classList.remove('sidebar-expanded');
+        } else {
+            sidebar.classList.remove('collapsed');
+            document.body.classList.remove('sidebar-collapsed');
+            document.body.classList.add('sidebar-expanded');
+        }
+    });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+

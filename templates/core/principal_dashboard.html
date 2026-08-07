@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}Examinations Overview - Principal Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-lg-4 px-xl-5">
+    <!-- Header Row -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div>
+            <h2 class="fw-bold mb-1" style="color: #0f172a; letter-spacing: -0.5px;">Examinations Overview</h2>
+            <p class="text-secondary mb-0 small">Select an examination below to view portion submissions, customize subjects, or print reports.</p>
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'manage_subjects' %}" class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-semibold shadow-sm text-dark bg-white">
+                <i class="bi bi-book text-primary me-1.5"></i> Master Subjects
+            </a>
+            <a href="{% url 'manage_divisions' %}" class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-semibold shadow-sm text-dark bg-white">
+                <i class="bi bi-diagram-3 text-info me-1.5"></i> Master Divisions
+            </a>
+            <a href="{% url 'create_exam' %}" class="btn btn-primary rounded-pill px-4 py-2 fw-bold text-white shadow-sm" style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border: none;">
+                <i class="bi bi-folder-plus me-1.5"></i> Create New Exam
+            </a>
+        </div>
+    </div>
+
+    <!-- Exams Summary Table Card -->
+    <div class="card dashboard-card p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-journal-check text-primary me-2"></i>All Created Examinations</h5>
+                <p class="text-muted small mb-0">Click <strong>"Dashboard"</strong> on any exam record to manage its syllabus collection</p>
+            </div>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-2 fs-6 font-semibold">{{ total_exams }} Total Examinations</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table align-middle mb-0 custom-dashboard-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">#</th>
+                        <th>Exam Title</th>
+                        <th>Academic Year</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Total Requests</th>
+                        <th class="text-center">Pending</th>
+                        <th class="text-center">Submitted</th>
+                        <th class="text-center">Approved</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in exam_list %}
+                    <tr>
+                        <td class="text-muted fw-semibold">{{ forloop.counter }}</td>
+                        <td>
+                            <a href="{% url 'exam_detail_dashboard' item.exam.id %}" class="fw-bold text-decoration-none text-dark fs-6 d-inline-flex align-items-center">
+                                <i class="bi bi-folder2-open text-primary me-2 fs-5"></i> {{ item.exam.title }}
+                            </a>
+                        </td>
+                        <td><span class="badge bg-light text-dark border font-monospace px-2.5 py-1.5">{{ item.exam.academic_year }}</span></td>
+                        <td class="text-center">
+                            {% if item.exam.is_active %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1.5 rounded-pill fw-bold">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Active
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-3 py-1.5 rounded-pill fw-bold">
+                                    <i class="bi bi-pause-circle-fill me-1"></i>Closed
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center font-semibold text-dark fs-6">{{ item.total }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1.5 rounded-pill fw-bold fs-7">{{ item.pending }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-3 py-1.5 rounded-pill fw-bold fs-7">{{ item.submitted }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1.5 rounded-pill fw-bold fs-7">{{ item.approved }}</span>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-action" role="group">
+                                <a href="{% url 'exam_detail_dashboard' item.exam.id %}" class="btn btn-primary btn-sm px-3 font-semibold" title="Open Exam Dashboard">
+                                    <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                                </a>
+
+                                <a href="{% url 'customize_exam_subjects' item.exam.id %}" class="btn btn-outline-secondary text-dark btn-sm font-semibold" title="Customize Subjects & Divisions">
+                                    <i class="bi bi-sliders text-warning me-1"></i> Customize
+                                </a>
+                                {% if item.exam.is_active %}
+                                    <a href="{% url 'toggle_exam_active' item.exam.id %}" class="btn btn-outline-danger btn-sm font-semibold" title="Hide from Teachers">
+                                        <i class="bi bi-eye-slash-fill me-1"></i> Inactive
+                                    </a>
+                                {% else %}
+                                    <a href="{% url 'toggle_exam_active' item.exam.id %}" class="btn btn-outline-success btn-sm font-semibold" title="Enable for Teachers">
+                                        <i class="bi bi-eye-fill me-1"></i> Activate
+                                    </a>
+                                {% endif %}
+                                <a href="{% url 'edit_exam' item.exam.id %}" class="btn btn-outline-secondary btn-sm" title="Edit Settings">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <a href="{% url 'compiled_exam_report' item.exam.id %}" class="btn btn-outline-dark btn-sm" title="Compiled Syllabus Report">
+                                    <i class="bi bi-file-earmark-pdf text-danger"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            <i class="bi bi-calendar-plus display-4 d-block mb-2 text-indigo opacity-50"></i>
+                            No examinations created yet.
+                            <br>
+                            <a href="{% url 'create_exam' %}" class="btn btn-primary btn-sm mt-3 px-4" style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border: none;">
+                                <i class="bi bi-plus-circle me-1"></i> Create First Exam
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

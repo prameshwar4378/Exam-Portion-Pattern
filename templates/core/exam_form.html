@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Exam - Exam Portion Pattern{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 650px;">
+    <div class="card glass-card p-4 p-md-5 my-3">
+        <div class="d-flex align-items-center mb-4">
+            <a href="{% url 'principal_dashboard' %}" class="btn btn-sm btn-outline-secondary rounded-circle me-3">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <div>
+                <h3 class="fw-bold mb-0">Create New Examination</h3>
+                <p class="text-muted small mb-0">Add an exam title to collect syllabus portions for</p>
+            </div>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+
+            {% if form.errors %}
+            <div class="alert alert-danger border border-danger p-3 mb-4">
+                <h6 class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-2"></i>Please correct the errors below:</h6>
+                <ul class="mb-0 small">
+                    {% for field, errors in form.errors.items %}
+                        {% for error in errors %}
+                            <li><strong>{{ field|title }}:</strong> {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <div class="mb-3">
+                <label class="form-label font-semibold">Exam Title / Name <span class="text-danger">*</span></label>
+                {{ form.title }}
+                <div class="form-text">e.g., Annual Examination 2026, Mid-Term Test, Board Mock Exam</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label font-semibold">Academic Year <span class="text-danger">*</span></label>
+                {{ form.academic_year }}
+                <div class="form-text">e.g., 2026-2027</div>
+            </div>
+
+            <div class="mb-4 form-check">
+                {{ form.is_active }}
+                <label class="form-check-label font-semibold" for="{{ form.is_active.id_for_label }}">
+                    Mark as Active Exam
+                </label>
+            </div>
+
+            <!-- Optional Advanced Header Settings -->
+            <div class="mb-4">
+                <button class="btn btn-sm btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center" type="button" data-bs-toggle="collapse" data-bs-target="#advancedHeaderSettings">
+                    <span><i class="bi bi-sliders me-2"></i>Customize School Header & Notes (Optional)</span>
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+                <div class="collapse mt-3" id="advancedHeaderSettings">
+                    <div class="p-3 bg-light rounded-3 border">
+                        <div class="mb-3">
+                            <label class="form-label font-semibold small">School Name Header</label>
+                            {{ form.school_name }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label font-semibold small">Header Subtitle</label>
+                            {{ form.header_subtitle }}
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label font-semibold small">Bottom Note Text</label>
+                            {{ form.note_text }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <a href="{% url 'principal_dashboard' %}" class="btn btn-light px-4">Cancel</a>
+                <button type="submit" class="btn btn-primary-custom px-4">
+                    <i class="bi bi-check-circle me-1"></i> Save Exam
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+{% endblock %}

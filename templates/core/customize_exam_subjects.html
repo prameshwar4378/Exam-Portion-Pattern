@@ -1,0 +1,333 @@
+{% extends 'base.html' %}
+{% load custom_tags %}
+
+{% block title %}Subject Customization - {{ exam.title }}{% endblock %}
+
+
+{% block content %}
+<div class="container-fluid px-lg-4">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div>
+            <span class="badge bg-primary rounded-pill mb-1">Exam Customization Board</span>
+            <h2 class="fw-bold mb-0">Subject & Division Allocation</h2>
+            <p class="text-muted mb-0">Select subjects and check divisions taking this exam for <strong>{{ exam.title }}</strong></p>
+        </div>
+
+        <div class="d-flex gap-2">
+            <a href="{% url 'manage_subjects' %}" class="btn btn-outline-dark btn-sm">
+                <i class="bi bi-gear me-1"></i> Manage Master Subjects
+            </a>
+            <a href="{% url 'manage_divisions' %}" class="btn btn-outline-dark btn-sm">
+                <i class="bi bi-diagram-3 me-1"></i> Manage Master Divisions
+            </a>
+            <a href="{% url 'principal_dashboard' %}?exam_id={{ exam.id }}" class="btn btn-light btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <!-- Default Settings Bar -->
+        <div class="card glass-card p-4 mb-4 border-info">
+            <h5 class="fw-bold text-info mb-3"><i class="bi bi-sliders me-2"></i>Default Paper Settings for allocated subjects</h5>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="total_marks" class="form-label font-semibold">Default Total Marks</label>
+                    <input type="number" name="total_marks" id="total_marks" class="form-control" value="80" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="duration_minutes" class="form-label font-semibold">Default Exam Duration (Minutes)</label>
+                    <input type="number" name="duration_minutes" id="duration_minutes" class="form-control" value="180" required>
+                </div>
+            </div>
+        </div>
+
+        <!-- View Mode Switcher -->
+        <div class="card glass-card p-3 mb-4 shadow-sm">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-dark me-2"><i class="bi bi-eye me-1 text-primary"></i>Allocation View Mode:</span>
+                    <div class="btn-group" role="group" aria-label="View Switcher">
+                        <button type="button" class="btn btn-primary active fw-bold" id="btnSubjectView" onclick="switchView('subject')">
+                            <i class="bi bi-book me-1"></i> Subject-Wise View
+                        </button>
+                        <button type="button" class="btn btn-outline-primary fw-bold" id="btnClassView" onclick="switchView('class')">
+                            <i class="bi bi-mortarboard-fill me-1"></i> Class / Grade-Wise View
+                        </button>
+                    </div>
+                </div>
+                <div class="text-muted small">
+                    Switch views anytime to manage allocations by Subject or by Class. Changes stay synchronized!
+                </div>
+            </div>
+        </div>
+
+        {% if not subjects %}
+            <div class="alert alert-warning text-center py-4 card glass-card">
+                <i class="bi bi-exclamation-triangle-fill fs-3 d-block mb-2 text-warning"></i>
+                No Master Subjects found in system! 
+                <br>
+                <a href="{% url 'manage_subjects' %}" class="btn btn-sm btn-primary-custom mt-2">
+                    <i class="bi bi-plus-circle me-1"></i> Add Master Subjects First
+                </a>
+            </div>
+        {% elif not divisions %}
+            <div class="alert alert-warning text-center py-4 card glass-card">
+                <i class="bi bi-exclamation-triangle-fill fs-3 d-block mb-2 text-warning"></i>
+                No Divisions / Classes found in system! 
+                <br>
+                <a href="{% url 'manage_divisions' %}" class="btn btn-sm btn-primary-custom mt-2">
+                    <i class="bi bi-plus-circle me-1"></i> Add Divisions First
+                </a>
+            </div>
+        {% else %}
+            <!-- Hidden Input Store for all Checkboxes -->
+            <div class="d-none" id="checkboxContainer">
+                {% for subj in subjects %}
+                    {% for div in divisions %}
+                        <input class="form-check-input division-checkbox" type="checkbox" name="alloc_{{ subj.id }}_{{ div.id }}" id="chk_{{ subj.id }}_{{ div.id }}" {% if not has_existing_allocations or div.id in subj.allocated_div_ids %}checked{% endif %}>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+
+            <!-- MODE 1: SUBJECT-WISE VIEW -->
+            <div id="subjectWiseView" class="card glass-card p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-book me-2"></i>Subject-Wise Allocation Management</h5>
+                        <p class="text-muted small mb-0">Select divisions offered for each master subject in {{ exam.title }}</p>
+                    </div>
+                    <span class="badge bg-light text-dark border">{{ subjects.count }} Master Subjects Available</span>
+                </div>
+
+                <div class="accordion" id="subjectsAccordion">
+                    {% for subj in subjects %}
+                    <div class="accordion-item mb-3 border rounded-3 overflow-hidden shadow-sm">
+                        <h2 class="accordion-header" id="heading-subj-{{ subj.id }}">
+                            <button class="accordion-button bg-light fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-subj-{{ subj.id }}" aria-expanded="true">
+                                <i class="bi bi-book text-primary me-2"></i> {{ subj.name }} {% if subj.code %}<span class="badge bg-secondary font-monospace ms-2">{{ subj.code }}</span>{% endif %}
+                            </button>
+                        </h2>
+                        <div id="collapse-subj-{{ subj.id }}" class="accordion-collapse collapse show">
+                            <div class="accordion-body p-4 bg-white">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <p class="text-muted small mb-0">Click any division pill to enable (Green) or disable (Red) for <strong>{{ subj.name }}</strong>:</p>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-success btn-sm" onclick="bulkSetSubject('{{ subj.id }}', true)">Enable All</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="bulkSetSubject('{{ subj.id }}', false)">Disable All</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="row g-2 row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6">
+                                    {% for div in divisions %}
+                                        <div class="col">
+                                            {% if not has_existing_allocations or div.id in subj.allocated_div_ids %}
+                                                <div class="division-card h-100 py-2 px-3 card-enabled" id="card_subj_{{ subj.id }}_div_{{ div.id }}" onclick="togglePair('{{ subj.id }}', '{{ div.id }}')">
+                                                    <div class="d-flex justify-content-between align-items-center w-100">
+                                                        <span class="div-title text-dark fw-semibold text-truncate me-2">{{ div }}</span>
+                                                        <span class="badge status-pill bg-success" id="pill_subj_{{ subj.id }}_div_{{ div.id }}">
+                                                            <i class="bi bi-check-lg fw-bold"></i>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            {% else %}
+                                                <div class="division-card h-100 py-2 px-3 card-disabled" id="card_subj_{{ subj.id }}_div_{{ div.id }}" onclick="togglePair('{{ subj.id }}', '{{ div.id }}')">
+                                                    <div class="d-flex justify-content-between align-items-center w-100">
+                                                        <span class="div-title text-dark fw-semibold text-truncate me-2">{{ div }}</span>
+                                                        <span class="badge status-pill bg-danger" id="pill_subj_{{ subj.id }}_div_{{ div.id }}">
+                                                            <i class="bi bi-x-lg fw-bold"></i>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- MODE 2: CLASS / GRADE-WISE VIEW -->
+            <div id="classWiseView" class="card glass-card p-4 mb-4 d-none">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-mortarboard-fill me-2"></i>Class / Grade-Wise Allocation Management</h5>
+                        <p class="text-muted small mb-0">Select subjects offered for each class / grade division in {{ exam.title }}</p>
+                    </div>
+                    <span class="badge bg-light text-dark border">{{ divisions.count }} Classes / Divisions Available</span>
+                </div>
+
+                <div class="accordion" id="classesAccordion">
+                    {% for div in divisions %}
+                    <div class="accordion-item mb-3 border rounded-3 overflow-hidden shadow-sm">
+                        <h2 class="accordion-header" id="heading-class-{{ div.id }}">
+                            <button class="accordion-button bg-light fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-class-{{ div.id }}" aria-expanded="true">
+                                <i class="bi bi-mortarboard text-primary me-2"></i> {{ div }}
+                            </button>
+                        </h2>
+                        <div id="collapse-class-{{ div.id }}" class="accordion-collapse collapse show">
+                            <div class="accordion-body p-4 bg-white">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <p class="text-muted small mb-0">Click any subject pill to enable (Green) or disable (Red) for <strong>{{ div }}</strong>:</p>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-success btn-sm" onclick="bulkSetClass('{{ div.id }}', true)">Enable All Subjects</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="bulkSetClass('{{ div.id }}', false)">Disable All Subjects</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="row g-2 row-cols-2 row-cols-sm-3 row-cols-md-4">
+                                    {% for subj in subjects %}
+                                        <div class="col">
+                                            {% if not has_existing_allocations or div.id in subj.allocated_div_ids %}
+                                                <div class="division-card h-100 py-2 px-3 card-enabled" id="card_class_{{ div.id }}_subj_{{ subj.id }}" onclick="togglePair('{{ subj.id }}', '{{ div.id }}')">
+                                                    <div class="d-flex justify-content-between align-items-center w-100">
+                                                        <span class="div-title text-dark fw-semibold text-truncate me-2">{{ subj.name }}</span>
+                                                        <span class="badge status-pill bg-success" id="pill_class_{{ div.id }}_subj_{{ subj.id }}">
+                                                            <i class="bi bi-check-lg fw-bold"></i>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            {% else %}
+                                                <div class="division-card h-100 py-2 px-3 card-disabled" id="card_class_{{ div.id }}_subj_{{ subj.id }}" onclick="togglePair('{{ subj.id }}', '{{ div.id }}')">
+                                                    <div class="d-flex justify-content-between align-items-center w-100">
+                                                        <span class="div-title text-dark fw-semibold text-truncate me-2">{{ subj.name }}</span>
+                                                        <span class="badge status-pill bg-danger" id="pill_class_{{ div.id }}_subj_{{ subj.id }}">
+                                                            <i class="bi bi-x-lg fw-bold"></i>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        {% endif %}
+
+        <!-- Submit Button -->
+        {% if subjects and divisions %}
+        <div class="card glass-card p-4 border-success d-flex flex-row justify-content-between align-items-center">
+            <div>
+                <h6 class="fw-bold mb-0">Ready to save allocations?</h6>
+                <small class="text-muted">Saving will update all portion requests for teachers across all subjects and classes.</small>
+            </div>
+            <button type="submit" class="btn btn-success btn-lg px-4 shadow">
+                <i class="bi bi-check-all me-1"></i> Save Subject & Division Allocations
+            </button>
+        </div>
+        {% endif %}
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function switchView(mode) {
+    const subjView = document.getElementById('subjectWiseView');
+    const classView = document.getElementById('classWiseView');
+    const btnSubj = document.getElementById('btnSubjectView');
+    const btnClass = document.getElementById('btnClassView');
+
+    if (mode === 'subject') {
+        subjView.classList.remove('d-none');
+        classView.classList.add('d-none');
+        btnSubj.classList.add('btn-primary', 'active');
+        btnSubj.classList.remove('btn-outline-primary');
+        btnClass.classList.add('btn-outline-primary');
+        btnClass.classList.remove('btn-primary', 'active');
+    } else {
+        classView.classList.remove('d-none');
+        subjView.classList.add('d-none');
+        btnClass.classList.add('btn-primary', 'active');
+        btnClass.classList.remove('btn-outline-primary');
+        btnSubj.classList.add('btn-outline-primary');
+        btnSubj.classList.remove('btn-primary', 'active');
+    }
+}
+
+function togglePair(subjId, divId) {
+    const chk = document.getElementById(`chk_${subjId}_${divId}`);
+    if (!chk) return;
+
+    // Toggle checked state
+    chk.checked = !chk.checked;
+    
+    // Sync both UI views
+    syncPairUI(subjId, divId, chk.checked);
+}
+
+function setPair(subjId, divId, enable) {
+    const chk = document.getElementById(`chk_${subjId}_${divId}`);
+    if (!chk) return;
+
+    chk.checked = enable;
+    syncPairUI(subjId, divId, enable);
+}
+
+function syncPairUI(subjId, divId, isEnabled) {
+    // 1. Subject-Wise Card & Pill
+    const cardSubj = document.getElementById(`card_subj_${subjId}_div_${divId}`);
+    const pillSubj = document.getElementById(`pill_subj_${subjId}_div_${divId}`);
+    if (cardSubj && pillSubj) {
+        updatePillUI(cardSubj, pillSubj, isEnabled);
+    }
+
+    // 2. Class-Wise Card & Pill
+    const cardClass = document.getElementById(`card_class_${divId}_subj_${subjId}`);
+    const pillClass = document.getElementById(`pill_class_${divId}_subj_${subjId}`);
+    if (cardClass && pillClass) {
+        updatePillUI(cardClass, pillClass, isEnabled);
+    }
+}
+
+function updatePillUI(card, pill, isEnabled) {
+    if (isEnabled) {
+        card.classList.remove('card-disabled');
+        card.classList.add('card-enabled');
+        pill.className = 'badge status-pill bg-success';
+        pill.innerHTML = '<i class="bi bi-check-lg fw-bold"></i>';
+    } else {
+        card.classList.remove('card-enabled');
+        card.classList.add('card-disabled');
+        pill.className = 'badge status-pill bg-danger';
+        pill.innerHTML = '<i class="bi bi-x-lg fw-bold"></i>';
+    }
+}
+
+
+function bulkSetSubject(subjId, enable) {
+    const hiddenInputs = document.querySelectorAll(`[id^="chk_${subjId}_"]`);
+    hiddenInputs.forEach(chk => {
+        const parts = chk.id.split('_');
+        if (parts.length === 3) {
+            const divId = parts[2];
+            setPair(subjId, divId, enable);
+        }
+    });
+}
+
+function bulkSetClass(divId, enable) {
+    const hiddenInputs = document.querySelectorAll(`[id$="_${divId}"]`);
+    hiddenInputs.forEach(chk => {
+        const parts = chk.id.split('_');
+        if (parts.length === 3) {
+            const subjId = parts[1];
+            setPair(subjId, divId, enable);
+        }
+    });
+}
+</script>
+{% endblock %}
+
+
