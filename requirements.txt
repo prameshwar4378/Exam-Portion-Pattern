@@ -1,0 +1,10 @@
+Django>=5.0.0
+asgiref>=3.8.0
+sqlparse>=0.5.0
+tzdata
+Pillow>=10.0.0
+openpyxl>=3.1.0
+djangorestframework>=3.14.0
+django-cors-headers>=4.3.0
+python-dotenv>=1.0.0
+whitenoise>=6.6.0
