@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Official Syllabus Paper & Time Table - {{ exam.title }}{% endblock %}
 
@@ -57,7 +58,7 @@
 
 .table-official th, .table-official td {
     border: 1.5px solid #000000 !important;
-    padding: 0.65rem 0.85rem !important;
+    padding: 0.45rem 0.65rem !important;
     vertical-align: top;
     color: #000000 !important;
 }
@@ -92,14 +93,71 @@
     font-size: 1.15rem;
 }
 
+.timetable-wrapper {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+}
+
 .timetable-header {
     text-align: center;
     font-weight: 800;
-    font-size: 0.98rem;
+    font-size: 0.95rem;
     text-transform: uppercase;
-    margin-top: 1.2rem;
-    margin-bottom: 0.4rem;
+    margin-top: 0.8rem;
+    margin-bottom: 0.3rem;
     letter-spacing: 0.5px;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+}
+
+/* Compact Timetable Grid for up to 8 Records */
+.table-timetable {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border: 1.5px solid #000000 !important;
+    margin-top: 0.3rem;
+    margin-bottom: 0.8rem;
+    table-layout: fixed !important;
+}
+
+.table-timetable th, .table-timetable td {
+    border: 1.5px solid #000000 !important;
+    padding: 0.35rem 0.15rem !important;
+    font-size: 0.76rem !important;
+    line-height: 1.25 !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    color: #000000 !important;
+    vertical-align: middle !important;
+    text-align: center !important;
+}
+
+.table-timetable th {
+    background-color: #f2f2f2 !important;
+    font-weight: 800;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.2px;
+}
+
+.table-timetable .label-cell {
+    width: 12% !important;
+    font-weight: 800;
+    background-color: #f8f9fa !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.3px;
+}
+
+.table-timetable .date-cell {
+    font-size: 0.74rem !important;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    white-space: nowrap !important;
+}
+
+.table-timetable .subject-cell {
+    font-size: 0.76rem !important;
+    font-weight: 800;
+    text-transform: uppercase;
 }
 
 .note-text {
@@ -134,7 +192,7 @@
 
 /* Print Specific Rules for A4 Single-Page Fit per Division */
 @media print {
-    .no-print, .d-none-print {
+    .no-print, .d-none-print, .official-paper.d-none-print {
         display: none !important;
     }
     
@@ -153,22 +211,25 @@
         min-width: 100% !important;
     }
 
-    .official-paper {
+    .official-paper:not(.d-none-print) {
         border: none !important;
         box-shadow: none !important;
         padding: 0 !important;
         margin: 0 !important;
         width: 100% !important;
         max-width: 100% !important;
-        min-height: 270mm !important;
-        max-height: 270mm !important;
+        min-height: 260mm !important;
+        height: auto !important;
+        max-height: none !important;
         page-break-after: always !important;
         break-after: page !important;
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: space-between !important;
+    }
+
+    .official-paper.d-none-print {
+        display: none !important;
     }
 
     .official-paper:last-child {
@@ -180,6 +241,15 @@
         width: 100% !important;
         max-width: 100% !important;
         table-layout: fixed !important;
+    }
+
+    .table-official thead {
+        display: table-header-group !important;
+    }
+
+    .table-official tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
     }
 
     .signature-row {
@@ -194,21 +264,21 @@
 
     <!-- Print & Division Filter Action Bar -->
     <div class="card no-print p-3 mb-4 border-0 shadow-sm rounded-3 bg-white">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
             <!-- Left: Back Button & Title -->
-            <div class="d-flex align-items-center gap-2">
-                <a href="{% url 'principal_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
+            <div class="d-flex align-items-center gap-2 text-nowrap">
+                <a href="{% url 'principal_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold text-nowrap d-inline-flex align-items-center">
                     <i class="bi bi-arrow-left me-1"></i> Dashboard
                 </a>
                 <span class="text-secondary opacity-50">|</span>
-                <span class="fw-bold text-dark fs-6"><i class="bi bi-file-earmark-pdf-fill text-danger me-1.5"></i>Official Report Sheets</span>
+                <span class="fw-bold text-dark fs-6 text-nowrap"><i class="bi bi-file-earmark-pdf-fill text-danger me-1.5"></i>Official Report Sheets</span>
             </div>
 
             <!-- Right: Division Selector & Action Buttons -->
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <div class="d-flex align-items-center">
+            <div class="d-flex align-items-center gap-2 flex-wrap flex-sm-nowrap">
+                <div class="d-flex align-items-center text-nowrap">
                     <label for="divisionFilterSelect" class="form-label mb-0 me-2 small fw-bold text-secondary text-nowrap">Filter Division:</label>
-                    <select id="divisionFilterSelect" class="form-select form-select-sm rounded-pill font-semibold shadow-sm" style="min-width: 170px; border-color: #cbd5e1;" onchange="filterDivision(this.value)">
+                    <select id="divisionFilterSelect" class="form-select form-select-sm rounded-pill font-semibold shadow-sm text-nowrap" style="min-width: 150px; border-color: #cbd5e1;" onchange="filterDivision(this.value)">
                         <option value="all" selected>All Divisions ({{ class_reports|length }})</option>
                         {% for report in class_reports %}
                             <option value="{{ report.class_name|slugify }}">{{ report.class_name }}</option>
@@ -216,12 +286,11 @@
                     </select>
                 </div>
 
-                <button onclick="downloadPDF()" class="btn btn-success btn-sm rounded-pill px-3.5 py-1.5 fw-bold text-white shadow-sm me-1" style="background: linear-gradient(135deg, #10b981 0%, #047857 100%); border: none;" id="downloadBtn">
-                    <i class="bi bi-download me-1.5"></i> <span id="downloadBtnText">Download PDF</span>
-                </button>
+                {# Download PDF Button (Temporarily hidden, logic preserved) #}
+                {# <button onclick="downloadPDF()" class="btn btn-success btn-sm rounded-pill px-3 py-1.5 fw-bold text-white text-nowrap shadow-sm" style="background: linear-gradient(135deg, #10b981 0%, #047857 100%); border: none;" id="downloadBtn"><i class="bi bi-download me-1.5"></i><span id="downloadBtnText">Download PDF</span></button> #}
 
-                <button onclick="window.print()" class="btn btn-primary btn-sm rounded-pill px-4 py-1.5 fw-bold text-white shadow-sm" style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border: none;" id="printBtn">
-                    <i class="bi bi-printer-fill me-1.5"></i> <span id="printBtnText">Print</span>
+                <button onclick="triggerPrint()" class="btn btn-primary btn-sm rounded-pill px-3.5 py-1.5 fw-bold text-white text-nowrap shadow-sm" style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border: none;" id="printBtn">
+                    <i class="bi bi-printer-fill me-1.5"></i><span id="printBtnText">Print</span>
                 </button>
             </div>
         </div>
@@ -232,11 +301,17 @@
     <div class="official-paper" data-division-slug="{{ report.class_name|slugify }}">
 
         <div>
-            <!-- School Header -->
-            <div class="text-center official-header">
-                <h3>{{ exam.school_name }}</h3>
-                <h4>{{ exam.title }} {{ exam.header_subtitle }}</h4>
-                <h5>{{ report.class_name }}</h5>
+            <!-- School Header with Logo on Top Left -->
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <div style="width: 80px;" class="text-start">
+                    <img src="{% static 'img/logo.jpg' %}" alt="School Logo" style="max-width: 75px; max-height: 75px; object-fit: contain;">
+                </div>
+                <div class="text-center official-header flex-grow-1 px-2">
+                    <h3>{{ exam.school_name }}</h3>
+                    <h4>{{ exam.title }} {{ exam.header_subtitle }}</h4>
+                    <h5>{{ report.class_name }}</h5>
+                </div>
+                <div style="width: 80px;"></div>
             </div>
 
             <!-- 4-Column Syllabus & Format Table -->
@@ -305,29 +380,31 @@
                 </tbody>
             </table>
 
-            <!-- Exam Timetable Grid -->
-            {% if report.timetable %}
-            <div class="timetable-header">
-                {{ exam.title }} TIMETABLE-{{ exam.academic_year }}
+            <!-- Exam Timetable Grid (Wrapped together so Title & Table NEVER separate across page breaks) -->
+            {% if report.timetable and report.timetable.entries %}
+            <div class="timetable-wrapper">
+                <div class="timetable-header">
+                    {{ report.timetable.name|upper }}
+                </div>
+                <table class="table-timetable">
+                    <thead>
+                        <tr>
+                            <th class="label-cell">DATE</th>
+                            {% for entry in report.timetable.entries %}
+                                <th class="date-cell">{{ entry.exam_date|date:"d/m/Y" }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="label-cell">SUBJECT</td>
+                            {% for entry in report.timetable.entries %}
+                                <td class="subject-cell">{{ entry.subject_name }}</td>
+                            {% endfor %}
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-            <table class="table-official text-center">
-                <thead>
-                    <tr>
-                        <th style="width: 15%;">DATE</th>
-                        {% for item in report.timetable %}
-                            <th>{{ item.date|date:"d/m/Y" }}</th>
-                        {% endfor %}
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="fw-bold">SUBJECT</td>
-                        {% for item in report.timetable %}
-                            <td class="fw-bold">{{ item.subject }}</td>
-                        {% endfor %}
-                    </tr>
-                </tbody>
-            </table>
             {% endif %}
         </div>
 
@@ -367,6 +444,21 @@
 {% block extra_js %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
+function updateDocumentTitle() {
+    const filterSelect = document.getElementById('divisionFilterSelect');
+    if (!filterSelect) return;
+    const selectedSlug = filterSelect.value;
+    const examTitle = "{{ exam.title }}".replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    if (selectedSlug === 'all') {
+        document.title = `Syllabus_Report_${examTitle}_All_Divisions`;
+    } else {
+        const selectedOpt = filterSelect.options[filterSelect.selectedIndex];
+        const label = selectedOpt ? selectedOpt.text.replace(/[^a-zA-Z0-9_-]/g, '_') : selectedSlug;
+        document.title = `Syllabus_Report_${label}`;
+    }
+}
+
 function filterDivision(selectedSlug) {
     const papers = document.querySelectorAll('.official-paper');
     const printBtnText = document.getElementById('printBtnText');
@@ -392,6 +484,14 @@ function filterDivision(selectedSlug) {
         if (printBtnText) printBtnText.innerText = label ? `Print (${label})` : 'Print';
         if (downloadBtnText) downloadBtnText.innerText = label ? `Download PDF (${label})` : 'Download PDF';
     }
+
+    // Update document title dynamically so Save as PDF pre-fills the exact filename
+    updateDocumentTitle();
+}
+
+function triggerPrint() {
+    updateDocumentTitle();
+    window.print();
 }
 
 function downloadPDF() {
@@ -403,9 +503,9 @@ function downloadPDF() {
     // Show loading spinner
     const origHTML = downloadBtn.innerHTML;
     downloadBtn.disabled = true;
-    downloadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1.5" role="status" aria-hidden="true"></span> Generating...';
+    downloadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1.5" role="status" aria-hidden="true"></span> Downloading PDF...';
 
-    // Create wrapper of visible report sheets
+    // Create wrapper container matching exact A4 dimensions
     const container = document.createElement('div');
     container.style.width = '210mm';
     container.style.background = '#ffffff';
@@ -415,10 +515,13 @@ function downloadPDF() {
     visiblePapers.forEach((paper, idx) => {
         const clone = paper.cloneNode(true);
         clone.style.display = 'flex';
-        clone.style.width = '100%';
-        clone.style.minHeight = '275mm';
-        clone.style.maxHeight = '275mm';
-        clone.style.padding = '15mm';
+        clone.style.flexDirection = 'column';
+        clone.style.justifyContent = 'space-between';
+        clone.style.width = '210mm';
+        clone.style.minHeight = '265mm';
+        clone.style.height = 'auto';
+        clone.style.maxHeight = 'none';
+        clone.style.padding = '10mm 15mm 10mm 15mm';
         clone.style.boxSizing = 'border-box';
         clone.style.border = 'none';
         clone.style.boxShadow = 'none';
@@ -437,8 +540,9 @@ function downloadPDF() {
         margin:       0,
         filename:     filename,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        html2canvas:  { scale: 2, useCORS: true, logging: false, letterRendering: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'], avoid: ['tr', '.timetable-wrapper', '.signature-row'] }
     };
 
     html2pdf().set(opt).from(container).save().then(() => {
@@ -452,5 +556,3 @@ function downloadPDF() {
 }
 </script>
 {% endblock %}
-
-

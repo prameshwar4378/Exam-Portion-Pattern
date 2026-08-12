@@ -60,6 +60,12 @@
                         <span class="link-text">Master Divisions</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link sidebar-link sidebar-item-exam d-flex align-items-center {% if 'timetable' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'manage_timetables' %}" title="Manage Exam Timetables">
+                        <i class="bi bi-calendar-week me-3 fs-5 nav-icon"></i>
+                        <span class="link-text">Exam Timetables</span>
+                    </a>
+                </li>
             </ul>
         </div>
 
@@ -73,7 +79,7 @@
                     </div>
                     <div class="user-info text-truncate">
                         <span class="fw-bold text-white small d-block text-truncate">{{ user.username }}</span>
-                        <small class="text-white-50 fs-8 d-block">Principal</small>
+                        <small class="text-white-50 fs-8 d-block">Aviraj Kale Sir</small>
                     </div>
                 </div>
                 <a href="{% url 'logout' %}" class="btn btn-sm btn-outline-danger border-0 rounded-circle logout-btn p-1" title="Logout">
@@ -114,7 +120,7 @@
     <footer class="bg-white border-top py-3 mt-auto no-print text-center text-muted small">
         <div class="container d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
             <div>
-                <span>Exam Syllabus Portion & Question Pattern Software &copy; {% now "Y" %}</span>
+                <span><b style="color: #d106d1;">Arohan Academy</b> Exam Syllabus Portion & Question Pattern Software &copy; {% now "Y" %}</span>
             </div>
             <div>
                 <span>Developed by <a href="https://prameshwar4378.github.io/My_Portfolio/" target="_blank" rel="noopener noreferrer" class="fw-bold text-decoration-none text-primary"><i class="bi bi-code-slash me-1"></i>Rameshwar Pawar</a></span>

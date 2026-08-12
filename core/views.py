@@ -167,8 +167,9 @@ def print_submission_view(request, submission_id):
 
 @login_required
 def compiled_exam_report(request, exam_id):
+    from .models import ExamTimetable
     exam = get_object_or_404(Exam, id=exam_id)
-    submissions = PortionSubmission.objects.filter(exam=exam).prefetch_related('pattern_items')
+    submissions = PortionSubmission.objects.filter(exam=exam).prefetch_related('pattern_items', 'division_ref')
     
     # Group submissions by class/grade
     from collections import defaultdict
@@ -178,25 +179,52 @@ def compiled_exam_report(request, exam_id):
         
     class_reports = []
     for class_name, subs in grouped_classes.items():
-        timetable_items = []
-        for sub in subs:
-            if sub.exam_date:
-                timetable_items.append({
-                    'date': sub.exam_date,
-                    'subject': sub.subject_name
-                })
-        timetable_items.sort(key=lambda x: x['date'])
+        first_sub = subs[0] if subs else None
+        div_ref = first_sub.division_ref if first_sub else None
+        
+        assigned_timetable = None
+        if div_ref:
+            # 1. Check if a timetable is explicitly assigned to this division
+            assigned_timetable = ExamTimetable.objects.filter(exam=exam, divisions=div_ref).prefetch_related('entries').first()
+            
+        if not assigned_timetable:
+            # 2. Check if there is a global timetable (with no specific divisions assigned)
+            assigned_timetable = ExamTimetable.objects.filter(exam=exam, divisions__isnull=True).prefetch_related('entries').first()
+
+
+        timetable_obj = None
+        if assigned_timetable:
+            timetable_entries = list(assigned_timetable.entries.all().order_by('exam_date', 'order'))
+            timetable_obj = {
+                'name': assigned_timetable.name,
+                'entries': timetable_entries
+            }
+        else:
+            fallback_items = []
+            for sub in subs:
+                if sub.exam_date:
+                    fallback_items.append({
+                        'exam_date': sub.exam_date,
+                        'subject_name': sub.subject_name
+                    })
+            fallback_items.sort(key=lambda x: x['exam_date'])
+            if fallback_items:
+                timetable_obj = {
+                    'name': f"{exam.title} TIMETABLE-{exam.academic_year}",
+                    'entries': fallback_items
+                }
         
         class_reports.append({
             'class_name': class_name,
             'submissions': subs,
-            'timetable': timetable_items
+            'timetable': timetable_obj
         })
 
     return render(request, 'core/compiled_report.html', {
         'exam': exam,
         'class_reports': class_reports
     })
+
 
 
 
@@ -533,9 +561,69 @@ def teacher_submit_portion(request, token):
             sub.status = 'SUBMITTED'
             sub.submitted_at = timezone.now()
             sub.save()
-            formset.save()
-            
-            messages.success(request, f"Thank you! Syllabus Portion & Question Pattern for {sub.subject_name} ({sub.class_name}) saved & submitted successfully.")
+
+            # Clean up old pattern items for this submission to prevent row accumulation
+            sub.pattern_items.all().delete()
+
+            saved_items = []
+            for pattern_form in formset.forms:
+                if pattern_form.cleaned_data and not pattern_form.cleaned_data.get('DELETE', False):
+                    q_type = str(pattern_form.cleaned_data.get('question_type') or '').strip()
+                    num_q = pattern_form.cleaned_data.get('number_of_questions', 0) or 0
+                    marks_p_q = pattern_form.cleaned_data.get('marks_per_question', 0.0) or 0.0
+                    sec_name = str(pattern_form.cleaned_data.get('section_name') or '').strip()
+                    c_info = str(pattern_form.cleaned_data.get('choice_info') or '').strip()
+
+                    if q_type and num_q > 0 and marks_p_q > 0:
+                        item = QuestionPatternItem.objects.create(
+                            submission=sub,
+                            question_type=q_type,
+                            number_of_questions=num_q,
+                            marks_per_question=marks_p_q,
+                            section_name=sec_name,
+                            choice_info=c_info
+                        )
+                        saved_items.append(item)
+
+            # Process copying to other selected divisions if requested by teacher (Filter out empty strings & enforce max 2 divisions)
+            raw_copy_target_ids = request.POST.getlist('copy_to_divisions')
+            copy_target_ids = [cid.strip() for cid in raw_copy_target_ids if cid and cid.strip()][:2]
+            copied_count = 0
+            if copy_target_ids:
+                target_subs = PortionSubmission.objects.filter(
+                    id__in=copy_target_ids,
+                    exam=submission.exam,
+                    subject_name=submission.subject_name
+                ).exclude(status='APPROVED')
+
+                for target_sub in target_subs:
+                    target_sub.teacher_name = sub.teacher_name
+                    target_sub.total_marks = sub.total_marks
+                    target_sub.duration_minutes = sub.duration_minutes
+                    target_sub.syllabus_portion = sub.syllabus_portion
+                    target_sub.instructions_for_students = sub.instructions_for_students
+                    target_sub.status = 'SUBMITTED'
+                    target_sub.submitted_at = timezone.now()
+                    target_sub.save()
+
+                    # Clone question pattern items
+                    target_sub.pattern_items.all().delete()
+                    for item in saved_items:
+                        QuestionPatternItem.objects.create(
+                            submission=target_sub,
+                            question_type=item.question_type,
+                            number_of_questions=item.number_of_questions,
+                            marks_per_question=item.marks_per_question,
+                            section_name=item.section_name,
+                            choice_info=item.choice_info
+                        )
+                    copied_count += 1
+
+            if copied_count > 0:
+                messages.success(request, f"Thank you! Syllabus Portion & Question Pattern saved & submitted for {sub.class_name} AND copied to {copied_count} other division(s) successfully!")
+            else:
+                messages.success(request, f"Thank you! Syllabus Portion & Question Pattern for {sub.subject_name} ({sub.class_name}) saved & submitted successfully.")
+
             return redirect('teacher_submission_success', token=submission.id)
         else:
             messages.error(request, "Please fix the validation errors in the form below.")
@@ -544,13 +632,21 @@ def teacher_submit_portion(request, token):
         form = TeacherSubmissionForm(instance=submission)
         formset = QuestionPatternFormSet(instance=submission)
 
+    # Query other divisions for the same subject and exam (excluding approved)
+    other_division_submissions = PortionSubmission.objects.filter(
+        exam=submission.exam,
+        subject_name=submission.subject_name
+    ).exclude(id=submission.id).exclude(status='APPROVED').select_related('division_ref')
+
     context = {
         'submission': submission,
         'form': form,
         'formset': formset,
         'is_readonly': is_readonly,
+        'other_division_submissions': other_division_submissions,
     }
     return render(request, 'core/teacher_submit_form.html', context)
+
 
 
 
@@ -558,4 +654,117 @@ def teacher_submit_portion(request, token):
 def teacher_submission_success(request, token):
     submission = get_object_or_404(PortionSubmission, id=token)
     return render(request, 'core/teacher_success.html', {'submission': submission})
+
+
+# --- EXAM TIMETABLE MANAGEMENT VIEWS ---
+
+@login_required
+def manage_timetables(request):
+    from .models import ExamTimetable, Exam
+    active_exams = Exam.objects.filter(is_active=True).prefetch_related('timetables__divisions', 'timetables__entries')
+    all_timetables = ExamTimetable.objects.all().select_related('exam').prefetch_related('divisions', 'entries')
+
+    return render(request, 'core/manage_timetables.html', {
+        'active_exams': active_exams,
+        'all_timetables': all_timetables
+    })
+
+@login_required
+def create_timetable(request):
+    from .forms import ExamTimetableForm, TimetableEntryFormSet
+    from .models import ExamTimetable, TimetableEntry
+
+    if request.method == 'POST':
+        form = ExamTimetableForm(request.POST)
+        formset = TimetableEntryFormSet(request.POST)
+        
+        form_valid = form.is_valid()
+        formset_valid = formset.is_valid()
+
+        if form_valid and formset_valid:
+            timetable = form.save()
+            
+            for entry_form in formset.forms:
+                if entry_form.cleaned_data and not entry_form.cleaned_data.get('DELETE', False):
+                    e_date = entry_form.cleaned_data.get('exam_date')
+                    s_name = str(entry_form.cleaned_data.get('subject_name') or '').strip()
+                    if e_date and s_name:
+                        entry = entry_form.save(commit=False)
+                        entry.timetable = timetable
+                        entry.save()
+                        
+            messages.success(request, f"Exam Timetable '{timetable.name}' created successfully!")
+            return redirect('manage_timetables')
+        else:
+            if not form_valid:
+                messages.error(request, f"Validation Error in Config: {form.errors.as_text()}")
+            elif not formset_valid:
+                messages.error(request, f"Validation Error in Schedule Entries: {formset.errors}")
+    else:
+        initial_exam_id = request.GET.get('exam_id')
+        initial_dict = {'exam': initial_exam_id} if initial_exam_id else {}
+        form = ExamTimetableForm(initial=initial_dict)
+        formset = TimetableEntryFormSet()
+
+    return render(request, 'core/timetable_form.html', {
+        'form': form,
+        'formset': formset,
+        'is_edit': False
+    })
+
+@login_required
+def edit_timetable(request, timetable_id):
+    from .forms import ExamTimetableForm, TimetableEntryFormSet
+    from .models import ExamTimetable
+    timetable = get_object_or_404(ExamTimetable, id=timetable_id)
+
+    if request.method == 'POST':
+        form = ExamTimetableForm(request.POST, instance=timetable)
+        formset = TimetableEntryFormSet(request.POST, instance=timetable)
+
+        form_valid = form.is_valid()
+        formset_valid = formset.is_valid()
+
+        if form_valid and formset_valid:
+            tt = form.save()
+            
+            # Clean up old entries and re-save valid entries
+            tt.entries.all().delete()
+            for entry_form in formset.forms:
+                if entry_form.cleaned_data and not entry_form.cleaned_data.get('DELETE', False):
+                    e_date = entry_form.cleaned_data.get('exam_date')
+                    s_name = str(entry_form.cleaned_data.get('subject_name') or '').strip()
+                    if e_date and s_name:
+                        entry = entry_form.save(commit=False)
+                        entry.timetable = tt
+                        entry.save()
+
+            messages.success(request, f"Exam Timetable '{tt.name}' updated successfully!")
+            return redirect('manage_timetables')
+        else:
+            if not form_valid:
+                messages.error(request, f"Validation Error in Config: {form.errors.as_text()}")
+            elif not formset_valid:
+                messages.error(request, f"Validation Error in Schedule Entries: {formset.errors}")
+    else:
+        form = ExamTimetableForm(instance=timetable)
+        formset = TimetableEntryFormSet(instance=timetable)
+
+    return render(request, 'core/timetable_form.html', {
+        'form': form,
+        'formset': formset,
+        'timetable': timetable,
+        'is_edit': True
+    })
+
+
+@login_required
+def delete_timetable(request, timetable_id):
+    from .models import ExamTimetable
+    timetable = get_object_or_404(ExamTimetable, id=timetable_id)
+    name = timetable.name
+    timetable.delete()
+    messages.success(request, f"Timetable '{name}' deleted successfully!")
+    return redirect('manage_timetables')
+
 

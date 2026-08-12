@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_edit %}Edit Timetable - {{ timetable.name }}{% else %}Create New Timetable{% endif %}{% endblock %}
+
+{% block extra_css %}
+<!-- Tom Select Bootstrap 5 Theme -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<style>
+.ts-wrapper .ts-control {
+    border-radius: 0.75rem !important;
+    padding: 0.65rem 0.85rem !important;
+    font-size: 0.95rem !important;
+    border-color: #cbd5e1 !important;
+}
+.ts-wrapper.focus .ts-control {
+    border-color: #4f46e5 !important;
+    box-shadow: 0 0 0 0.25rem rgba(79, 70, 229, 0.15) !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-2 py-md-3" style="max-width: 900px;">
+    <!-- Top Nav Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <a href="{% url 'manage_timetables' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 mb-2">
+                <i class="bi bi-arrow-left me-1"></i> Back to Timetables
+            </a>
+            <h3 class="fw-bold text-dark mb-0">
+                {% if is_edit %}<i class="bi bi-pencil-square text-primary me-2"></i>Edit Timetable{% else %}<i class="bi bi-plus-circle-fill text-primary me-2"></i>Create New Timetable{% endif %}
+            </h3>
+        </div>
+    </div>
+
+    <form method="post" id="timetableForm">
+        {% csrf_token %}
+        
+        <!-- Step 1: Timetable Header & Target Divisions -->
+        <div class="card glass-card p-3 p-md-4 mb-4">
+            <h5 class="fw-bold text-primary mb-3"><i class="bi bi-1-circle-fill me-2"></i>Timetable Config & Division Assignment</h5>
+            
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <label class="form-label font-semibold">1. Select Examination <span class="text-danger">*</span></label>
+                    {{ form.exam }}
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="form-label font-semibold">2. Timetable Header Name <span class="text-danger">*</span></label>
+                    {{ form.name }}
+                    <div class="form-text">e.g. <code>PA-1 EXAM TIMETABLE-2026-26</code> or <code>10th Grade Exam Schedule</code></div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label font-semibold">3. Assign to Target Division(s)</label>
+                    {{ form.divisions }}
+                    <div class="form-text">Search and select target division(s) that should use this timetable on their report sheets. Leave empty to apply to all divisions in the exam by default.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Date & Subject Entries -->
+        <div class="card glass-card p-3 p-md-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="fw-bold text-primary mb-0"><i class="bi bi-2-circle-fill me-2"></i>Schedule Date & Subject Entries</h5>
+                    <p class="text-muted small mb-0">Add exam dates and corresponding subjects in chronological order</p>
+                </div>
+            </div>
+
+            {{ formset.management_form }}
+            <div class="table-responsive rounded-3 border mb-2">
+                <table class="table table-bordered align-middle mb-0" id="entriesTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 35%;">Exam Date</th>
+                            <th style="width: 55%;">Subject Name</th>
+                            <th style="width: 10%;" class="text-center">Delete</th>
+                        </tr>
+                    </thead>
+                    <tbody id="formsetBody">
+                        <!-- Empty Template Row -->
+                        <tr class="entry-row d-none" id="emptyRowTemplate">
+                            <td>
+                                {{ formset.empty_form.id }}
+                                {{ formset.empty_form.exam_date }}
+                            </td>
+                            <td>{{ formset.empty_form.subject_name }}</td>
+                            <td class="text-center">
+                                <div class="d-none">
+                                    {{ formset.empty_form.DELETE }}
+                                </div>
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-circle px-2 py-1 shadow-sm" onclick="deleteEntryRow(this)" title="Delete row">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </td>
+                        </tr>
+
+                        {% for item_form in formset %}
+                        <tr class="entry-row">
+                            <td>
+                                {{ item_form.id }}
+                                {{ item_form.exam_date }}
+                            </td>
+                            <td>{{ item_form.subject_name }}</td>
+                            <td class="text-center">
+                                {% if formset.can_delete %}
+                                    <div class="d-none">
+                                        {{ item_form.DELETE }}
+                                    </div>
+                                    <button type="button" class="btn btn-outline-danger btn-sm rounded-circle px-2 py-1 shadow-sm" onclick="deleteEntryRow(this)" title="Delete row">
+                                        <i class="bi bi-trash-fill"></i>
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-3">
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-semibold" id="addRowBtn">
+                    <i class="bi bi-plus-circle me-1"></i> Add Schedule Row
+                </button>
+            </div>
+        </div>
+
+        <!-- Submit Button Card -->
+        <div class="card glass-card p-3 p-md-4 border-primary text-end mb-4">
+            <button type="submit" class="btn btn-primary btn-lg w-100 w-sm-auto px-5 py-3 fw-bold rounded-pill shadow-sm">
+                <i class="bi bi-save-fill me-2"></i> {% if is_edit %}Save Changes{% else %}Save & Create Timetable{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Tom Select JS -->
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script>
+function deleteEntryRow(btn) {
+    const row = btn.closest('.entry-row');
+    if (!row) return;
+    
+    const deleteChk = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+    if (deleteChk) {
+        deleteChk.checked = true;
+    }
+    row.style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Tom Select for Divisions Multi-Select
+    const divSelect = document.getElementById('divisionsSelect');
+    if (divSelect) {
+        new TomSelect('#divisionsSelect', {
+            plugins: ['remove_button'],
+            placeholder: 'Search and select target division(s)...'
+        });
+    }
+
+    const addRowBtn = document.getElementById('addRowBtn');
+    const formsetBody = document.getElementById('formsetBody');
+    const totalFormsInput = document.getElementById('id_entries-TOTAL_FORMS');
+
+    function addNewRow() {
+        const currentCount = parseInt(totalFormsInput.value);
+        const templateRow = document.getElementById('emptyRowTemplate');
+        if (!templateRow) return;
+
+        const newRow = templateRow.cloneNode(true);
+        newRow.removeAttribute('id');
+        newRow.classList.remove('d-none');
+        newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, currentCount);
+
+        formsetBody.appendChild(newRow);
+        totalFormsInput.value = currentCount + 1;
+    }
+
+    if (addRowBtn) {
+        addRowBtn.addEventListener('click', addNewRow);
+    }
+
+    // Auto-add 3 rows if starting empty
+    const existingVisibleRows = formsetBody.querySelectorAll('.entry-row:not(#emptyRowTemplate)');
+    if (existingVisibleRows.length === 0) {
+        for (let i = 0; i < 3; i++) {
+            addNewRow();
+        }
+    }
+});
+</script>
+{% endblock %}

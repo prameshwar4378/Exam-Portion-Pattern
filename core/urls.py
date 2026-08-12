@@ -22,6 +22,13 @@ urlpatterns = [
     path('divisions/', views.manage_divisions, name='manage_divisions'),
     path('divisions/<int:division_id>/delete/', views.delete_division, name='delete_division'),
 
+    # Exam Timetable Management
+    path('timetables/', views.manage_timetables, name='manage_timetables'),
+    path('timetables/create/', views.create_timetable, name='create_timetable'),
+    path('timetables/edit/<uuid:timetable_id>/', views.edit_timetable, name='edit_timetable'),
+    path('timetables/delete/<uuid:timetable_id>/', views.delete_timetable, name='delete_timetable'),
+
+
     # Teacher Public Portal (No login needed)
 
     path('teacher/', views.teacher_portal, name='teacher_portal'),

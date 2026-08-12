@@ -1,6 +1,6 @@
 from django import forms
 from django.forms import inlineformset_factory
-from .models import Exam, PortionSubmission, QuestionPatternItem, MasterSubject, Division
+from .models import Exam, PortionSubmission, QuestionPatternItem, MasterSubject, Division, ExamTimetable, TimetableEntry
 
 class MasterSubjectForm(forms.ModelForm):
     class Meta:
@@ -107,5 +107,52 @@ QuestionPatternFormSet = inlineformset_factory(
     extra=0,
     can_delete=True
 )
+
+
+class ExamTimetableForm(forms.ModelForm):
+    divisions = forms.ModelMultipleChoiceField(
+        queryset=Division.objects.all(),
+        widget=forms.SelectMultiple(attrs={'id': 'divisionsSelect'}),
+        required=False,
+        help_text="Select one or more divisions configured for this timetable"
+    )
+
+    class Meta:
+        model = ExamTimetable
+        fields = ['exam', 'name', 'divisions']
+        widgets = {
+            'exam': forms.Select(attrs={'class': 'form-select', 'id': 'examSelect'}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. PA-1 EXAM TIMETABLE-2026-26'}),
+        }
+
+
+class TimetableEntryForm(forms.ModelForm):
+    exam_date = forms.DateField(
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        required=False
+    )
+    subject_name = forms.CharField(
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. English, Science, Maths'}),
+        required=False
+    )
+    order = forms.IntegerField(
+        initial=0,
+        required=False,
+        widget=forms.HiddenInput()
+    )
+
+    class Meta:
+        model = TimetableEntry
+        fields = ['exam_date', 'subject_name', 'order']
+
+
+TimetableEntryFormSet = inlineformset_factory(
+    ExamTimetable,
+    TimetableEntry,
+    form=TimetableEntryForm,
+    extra=0,
+    can_delete=True
+)
+
 
 

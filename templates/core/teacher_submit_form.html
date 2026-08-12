@@ -4,6 +4,82 @@
 
 {% block navbar %}{% endblock %}
 
+{% block extra_css %}
+<!-- Tom Select Bootstrap 5 Theme -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<style>
+.ts-wrapper .ts-control {
+    border-radius: 0.75rem !important;
+    padding: 0.65rem 0.85rem !important;
+    font-size: 0.95rem !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+    min-height: 48px !important;
+    align-items: center !important;
+}
+.ts-wrapper.focus .ts-control {
+    border-color: #4f46e5 !important;
+    box-shadow: 0 0 0 0.25rem rgba(79, 70, 229, 0.15) !important;
+}
+.ts-wrapper .ts-control > input {
+    display: inline-block !important;
+    min-width: 140px !important;
+    opacity: 1 !important;
+    font-size: 0.95rem !important;
+}
+.ts-dropdown {
+    border-radius: 0.75rem !important;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+    border-color: #e2e8f0 !important;
+    z-index: 1050 !important;
+}
+.ts-dropdown .option {
+    padding: 0.6rem 1rem !important;
+    font-size: 0.95rem !important;
+}
+.ts-dropdown .active {
+    background-color: #eef2ff !important;
+    color: #4f46e5 !important;
+    font-weight: 600 !important;
+}
+
+/* Styled Selected Division Tags with Delete / Unmark Cross Buttons */
+.ts-wrapper .ts-control .item {
+    background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%) !important;
+    color: #ffffff !important;
+    border-radius: 9999px !important;
+    padding: 0.35rem 0.85rem !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3) !important;
+    margin: 0.2rem !important;
+}
+
+.ts-wrapper .ts-control .item .remove {
+    border-left: 1px solid rgba(255, 255, 255, 0.35) !important;
+    padding-left: 0.5rem !important;
+    margin-left: 0.25rem !important;
+    color: #ffffff !important;
+    opacity: 0.9;
+    font-size: 1.15rem !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+}
+
+.ts-wrapper .ts-control .item .remove:hover {
+    opacity: 1 !important;
+    color: #fecdd3 !important;
+    background: transparent !important;
+}
+</style>
+{% endblock %}
+
+
+
+
 {% block content %}
 
 <div class="container py-2 py-md-3" style="max-width: 950px;">
@@ -165,6 +241,42 @@
             </div>
         </div>
 
+        <!-- Step 4: Copy to Another Division (Searchable Single-Select) -->
+        {% if other_division_submissions and not is_readonly %}
+        <div class="card glass-card p-3 p-md-4 mb-4 border-info shadow-sm">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2 mb-2">
+                <h5 class="fw-bold text-info mb-0">
+                    <i class="bi bi-copy me-2"></i>Copy Portion & Pattern to Another Division
+                </h5>
+                <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-3 py-1 font-semibold">
+                    <i class="bi bi-info-circle me-1"></i> Single Division Selection
+                </span>
+            </div>
+            <p class="text-muted small mb-2">
+                Search or select <strong>another division</strong> of <strong>{{ submission.subject_name }}</strong> to copy this exact syllabus portion & question pattern:
+            </p>
+
+            <!-- Top Selected Target Division Badge Display -->
+            <div class="mb-3">
+                <div class="small fw-bold text-secondary mb-1">Selected Target Division:</div>
+                <div id="selectedDivisionBadges" class="d-flex flex-wrap gap-2 p-2.5 bg-light rounded-3 border align-items-center" style="min-height: 48px;">
+                    <span class="text-muted small fst-italic ms-1" id="emptyBadgeNotice"><i class="bi bi-info-circle me-1"></i>No division selected yet. Choose one below.</span>
+                </div>
+            </div>
+
+            <!-- Single-Select Searchable Dropdown -->
+            <select name="copy_to_divisions" id="copyDivisionsSelect">
+                <option value="">-- Choose Division --</option>
+                {% for other_sub in other_division_submissions %}
+                    <option value="{{ other_sub.id }}">{{ other_sub.class_name }} (Status: {{ other_sub.get_status_display }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+
+
+
         <!-- Submit Button Card -->
         {% if not is_readonly %}
         <div class="card glass-card p-3 p-md-4 border-primary text-center text-sm-end mb-4">
@@ -183,11 +295,14 @@
     </form>
 </div>
 
+
     </form>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<!-- Tom Select JS Bundle -->
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
 function calculateTotals() {
     let totalSum = 0;
@@ -294,11 +409,55 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial calculation on load
     calculateTotals();
+
+    // Initialize Single-Select Searchable Dropdown for Copying Division
+    const copySelectEl = document.getElementById('copyDivisionsSelect');
+    if (copySelectEl && typeof TomSelect !== 'undefined') {
+        const tsControl = new TomSelect('#copyDivisionsSelect', {
+            maxItems: 1,
+            create: false,
+            searchField: ['text', 'value'],
+            placeholder: '-- Choose Division --',
+            render: {
+                no_results: function(data, escape) {
+                    return '<div class="no-results p-2.5 text-muted small fw-semibold"><i class="bi bi-search me-1 text-danger"></i> No matching division found</div>';
+                }
+            }
+        });
+
+        function syncSelectedDivisionBadges() {
+            const container = document.getElementById('selectedDivisionBadges');
+            if (!container) return;
+
+            const selectedVal = tsControl.getValue();
+            container.innerHTML = '';
+
+            if (!selectedVal) {
+                container.innerHTML = '<span class="text-muted small fst-italic ms-1" id="emptyBadgeNotice"><i class="bi bi-info-circle me-1"></i>No division selected yet. Choose one below.</span>';
+                return;
+            }
+
+            const option = copySelectEl.querySelector(`option[value="${selectedVal}"]`);
+            const labelText = option ? option.textContent : selectedVal;
+
+            const badge = document.createElement('div');
+            badge.className = 'badge bg-primary text-white px-3 py-2 rounded-pill fs-6 d-inline-flex align-items-center shadow-sm';
+            badge.innerHTML = `
+                <i class="bi bi-diagram-3 me-2"></i>
+                <span class="fw-semibold me-1">${labelText}</span>
+                <button type="button" class="btn-close btn-close-white ms-2 p-1" style="font-size: 0.65rem;" onclick="clearTargetDivision()" title="Unmark / Delete ${labelText}"></button>
+            `;
+            container.appendChild(badge);
+        }
+
+        window.clearTargetDivision = function() {
+            tsControl.clear();
+            syncSelectedDivisionBadges();
+        };
+
+        tsControl.on('change', syncSelectedDivisionBadges);
+        syncSelectedDivisionBadges();
+    }
 });
 </script>
 {% endblock %}
-
-
-
-
-
