@@ -25,6 +25,23 @@ class Division(models.Model):
     def __str__(self):
         return f"{self.standard} - {self.division_name}"
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        old_name = None
+        if not is_new:
+            old_obj = Division.objects.filter(pk=self.pk).first()
+            if old_obj:
+                old_name = str(old_obj)
+
+        super().save(*args, **kwargs)
+
+        new_name = str(self)
+        # Instantly update all linked PortionSubmissions when a Division is created or edited
+        from core.models import PortionSubmission
+        PortionSubmission.objects.filter(division_ref=self).update(class_name=new_name)
+        if old_name and old_name != new_name:
+            PortionSubmission.objects.filter(class_name=old_name).update(class_name=new_name, division_ref=self)
+
 
 class Exam(models.Model):
     title = models.CharField(max_length=200, help_text="e.g. PA-1 Exam 2026-2027")
@@ -79,8 +96,16 @@ class PortionSubmission(models.Model):
     class Meta:
         ordering = ['class_name', 'subject_name']
 
-    def __str__(self):
-        return f"{self.class_name} - {self.subject_name} ({self.teacher_name})"
+    @property
+    def display_class_name(self):
+        if self.division_ref:
+            return str(self.division_ref)
+        return self.class_name
+
+    def save(self, *args, **kwargs):
+        if self.division_ref:
+            self.class_name = str(self.division_ref)
+        super().save(*args, **kwargs)
 
     @property
     def total_calculated_marks(self):

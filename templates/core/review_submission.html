@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
 
-{% block title %}Review Submission - {{ submission.subject_name }} ({{ submission.class_name }}){% endblock %}
+{% block title %}Review Submission - {{ submission.subject_name }} ({{ submission.display_class_name }}){% endblock %}
 
 {% block content %}
-<div class="container" style="max-width: 900px;">
+<div class="container-fluid px-md-4" style="max-width: 1200px;">
     <div class="d-flex align-items-center justify-content-between mb-4">
         <div class="d-flex align-items-center">
             <a href="{% url 'exam_detail_dashboard' submission.exam.id %}" class="btn btn-sm btn-outline-secondary rounded-circle me-3" title="Back to Exam Dashboard">
@@ -11,13 +11,16 @@
             </a>
             <div>
                 <h3 class="fw-bold mb-0">Review Syllabus & Question Pattern</h3>
-                <span class="text-muted small">{{ submission.exam.title }} | {{ submission.class_name }} - {{ submission.subject_name }}</span>
+                <span class="text-muted small">{{ submission.exam.title }} | {{ submission.display_class_name }} - {{ submission.subject_name }}</span>
             </div>
         </div>
 
-        <div>
-            <a href="{% url 'print_submission' submission.id %}" target="_blank" class="btn btn-outline-secondary">
+        <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'print_submission' submission.id %}" target="_blank" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
                 <i class="bi bi-printer me-1"></i> Print Preview
+            </a>
+            <a href="{% url 'delete_submission' submission.id %}" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold shadow-sm" onclick="return confirm('Are you sure you want to clear and reset all teacher-submitted content for {{ submission.subject_name }} ({{ submission.display_class_name }}) back to Pending?');">
+                <i class="bi bi-eraser-fill me-1"></i> Clear Submission
             </a>
         </div>
     </div>
@@ -118,13 +121,13 @@
                 <textarea name="principal_remarks" id="principal_remarks" class="form-control" rows="3" placeholder="Enter optional notes e.g., 'Approved without changes' or 'Please adjust Section B marks to total 80 marks'">{{ submission.principal_remarks }}</textarea>
             </div>
             
-            <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3">
                 <span class="text-muted small">Teachers will see your remarks if revision is requested.</span>
-                <div class="d-flex gap-2">
-                    <button type="submit" name="action" value="request_revision" class="btn btn-outline-danger">
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="submit" name="action" value="request_revision" class="btn btn-outline-warning rounded-pill px-3 py-2 fw-bold">
                         <i class="bi bi-arrow-repeat me-1"></i> Request Revision
                     </button>
-                    <button type="submit" name="action" value="approve" class="btn btn-success px-4">
+                    <button type="submit" name="action" value="approve" class="btn btn-success rounded-pill px-4 py-2 fw-bold shadow-sm">
                         <i class="bi bi-check-circle me-1"></i> Approve Portion & Pattern
                     </button>
                 </div>

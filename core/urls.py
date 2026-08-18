@@ -13,6 +13,7 @@ urlpatterns = [
 
     path('submission/<uuid:submission_id>/review/', views.review_submission, name='review_submission'),
     path('submission/<uuid:submission_id>/print/', views.print_submission_view, name='print_submission'),
+    path('submission/<uuid:submission_id>/delete/', views.delete_submission, name='delete_submission'),
     path('exam/<int:exam_id>/compiled-report/', views.compiled_exam_report, name='compiled_exam_report'),
     path('exam/<int:exam_id>/customize/', views.customize_exam_subjects, name='customize_exam_subjects'),
 

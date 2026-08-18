@@ -76,7 +76,7 @@ def exam_detail_dashboard(request, exam_id):
     from collections import defaultdict
     grouped_dict = defaultdict(list)
     for sub in submissions:
-        grouped_dict[sub.class_name].append(sub)
+        grouped_dict[sub.display_class_name].append(sub)
 
     submission_groups = []
     for class_name, subs in grouped_dict.items():
@@ -166,6 +166,28 @@ def print_submission_view(request, submission_id):
     return render(request, 'core/print_submission.html', {'submission': submission})
 
 @login_required
+def delete_submission(request, submission_id):
+    submission = get_object_or_404(PortionSubmission, id=submission_id)
+    exam_id = submission.exam.id
+    subject_name = submission.subject_name
+    class_name = submission.class_name
+
+    # Clear teacher-submitted information and reset status back to PENDING
+    submission.syllabus_portion = ''
+    submission.instructions_for_students = ''
+    submission.status = 'PENDING'
+    submission.submitted_at = None
+    submission.teacher_name = ''
+    submission.principal_remarks = ''
+    submission.save()
+
+    # Clear associated question pattern items
+    submission.pattern_items.all().delete()
+
+    messages.success(request, f"Submission content for {subject_name} ({class_name}) has been cleared and reset to Pending!")
+    return redirect('exam_detail_dashboard', exam_id=exam_id)
+
+@login_required
 def compiled_exam_report(request, exam_id):
     from .models import ExamTimetable
     exam = get_object_or_404(Exam, id=exam_id)
@@ -175,7 +197,7 @@ def compiled_exam_report(request, exam_id):
     from collections import defaultdict
     grouped_classes = defaultdict(list)
     for sub in submissions:
-        grouped_classes[sub.class_name].append(sub)
+        grouped_classes[sub.display_class_name].append(sub)
         
     class_reports = []
     for class_name, subs in grouped_classes.items():
