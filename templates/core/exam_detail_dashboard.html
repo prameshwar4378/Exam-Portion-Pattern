@@ -57,6 +57,80 @@
     background-color: #f8fafc !important;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
 }
+
+/* Dashboard Action Toolbar Styling */
+.search-teacher-box {
+    min-width: 240px;
+    max-width: 300px;
+}
+
+.search-teacher-box .form-control,
+.search-teacher-box .input-group-text,
+.search-teacher-box .btn {
+    height: 38px !important;
+    font-size: 0.88rem !important;
+    border-color: #cbd5e1 !important;
+}
+
+.search-teacher-box .form-control:focus {
+    box-shadow: none !important;
+    border-color: #94a3b8 !important;
+}
+
+.btn-toolbar-group .btn {
+    height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    padding: 0 0.9rem !important;
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #334155 !important;
+    transition: all 0.15s ease !important;
+}
+
+.btn-toolbar-group .btn:hover {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    border-color: #94a3b8 !important;
+}
+
+.btn-toolbar-group .btn:active {
+    background-color: #e2e8f0 !important;
+}
+
+.btn-customize-action {
+    height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    padding: 0 1rem !important;
+    border-radius: 0.375rem !important;
+}
+
+/* Accordion Header Chevron Rotation */
+.class-group-header {
+    user-select: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.class-group-header:hover {
+    background-color: #f8fafc !important;
+}
+
+.class-group-header .bi-chevron-down {
+    transition: transform 0.25s ease;
+}
+
+.class-group-header.collapsed .bi-chevron-down {
+    transform: rotate(-90deg);
+}
 </style>
 {% endblock %}
 
@@ -166,7 +240,7 @@
 
         <div class="d-flex align-items-center gap-2 flex-wrap flex-sm-nowrap">
             <!-- Fast Local Teacher / Subject Search Input -->
-            <div class="input-group input-group-sm search-teacher-box" style="min-width: 250px; max-width: 320px;">
+            <div class="input-group search-teacher-box shadow-sm rounded">
                 <span class="input-group-text bg-white border-end-0 text-muted ps-2.5">
                     <i class="bi bi-search text-primary"></i>
                 </span>
@@ -176,16 +250,19 @@
                 </button>
             </div>
 
-            <div class="btn-group btn-group-sm">
-                <button type="button" class="btn btn-outline-secondary" onclick="expandAllGroups()" title="Expand All Classes">
-                    <i class="bi bi-arrows-expand me-1"></i> Expand All
+            <!-- Expand / Collapse All Connected Button Group -->
+            <div class="btn-group btn-toolbar-group shadow-sm rounded" role="group" aria-label="Expand or Collapse All Classes">
+                <button type="button" class="btn" onclick="expandAllGroups()" title="Expand All Classes">
+                    <i class="bi bi-arrows-expand text-primary me-1.5"></i> Expand All
                 </button>
-                <button type="button" class="btn btn-outline-secondary" onclick="collapseAllGroups()" title="Collapse All Classes">
-                    <i class="bi bi-arrows-collapse me-1"></i> Collapse All
+                <button type="button" class="btn" onclick="collapseAllGroups()" title="Collapse All Classes">
+                    <i class="bi bi-arrows-collapse text-secondary me-1.5"></i> Collapse All
                 </button>
             </div>
-            <a href="{% url 'customize_exam_subjects' active_exam.id %}" class="btn btn-sm btn-warning text-dark font-semibold text-nowrap">
-                <i class="bi bi-sliders me-1"></i> Customize Subjects & Divisions
+
+            <!-- Customize Button -->
+            <a href="{% url 'customize_exam_subjects' active_exam.id %}" class="btn btn-warning text-dark btn-customize-action shadow-sm">
+                <i class="bi bi-sliders me-1.5"></i> Customize Subjects & Divisions
             </a>
         </div>
     </div>
@@ -217,12 +294,12 @@
     {% for group in submission_groups %}
     <div class="card glass-card mb-3 overflow-hidden shadow-sm border class-group-card">
         <!-- Class Group Header (Click to Expand / Collapse) -->
-        <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center" 
+        <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center class-group-header" 
              data-bs-toggle="collapse" 
              data-bs-target="#classGroup-{{ forloop.counter }}" 
              aria-expanded="true" 
              aria-controls="classGroup-{{ forloop.counter }}"
-             style="cursor: pointer; user-select: none;">
+             data-class-slug="{{ group.class_name|slugify }}">
             <div class="d-flex align-items-center gap-3">
                 <i class="bi bi-chevron-down text-primary fs-5"></i>
                 <h5 class="fw-bold text-dark mb-0 fs-6">
@@ -256,7 +333,7 @@
         </div>
 
         <!-- Collapsible Class Subjects Table -->
-        <div id="classGroup-{{ forloop.counter }}" class="collapse show class-group-collapse">
+        <div id="classGroup-{{ forloop.counter }}" class="collapse show class-group-collapse" data-class-slug="{{ group.class_name|slugify }}">
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 sortable-subject-table">
@@ -493,12 +570,88 @@ function clearTeacherSearch() {
     executeFilters();
 }
 
-// Restore saved filter from localStorage on page load & initialize SortableJS
+// --- ACCORDION EXPAND / COLLAPSE STATE BROWSER CACHE ---
+const EXAM_ACCORDION_STORAGE_KEY = 'exam_accordion_states_{{ active_exam.id }}';
+
+function getAccordionStates() {
+    try {
+        return JSON.parse(localStorage.getItem(EXAM_ACCORDION_STORAGE_KEY) || '{}');
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveAccordionState(classSlug, isExpanded) {
+    if (!classSlug) return;
+    const states = getAccordionStates();
+    states[classSlug] = isExpanded;
+    localStorage.setItem(EXAM_ACCORDION_STORAGE_KEY, JSON.stringify(states));
+}
+
+function saveAllAccordionStates(isExpanded) {
+    const states = {};
+    document.querySelectorAll('.class-group-collapse').forEach(el => {
+        const slug = el.getAttribute('data-class-slug');
+        if (slug) {
+            states[slug] = isExpanded;
+        }
+    });
+    localStorage.setItem(EXAM_ACCORDION_STORAGE_KEY, JSON.stringify(states));
+}
+
+function restoreAccordionStates() {
+    const states = getAccordionStates();
+    document.querySelectorAll('.class-group-collapse').forEach(el => {
+        const slug = el.getAttribute('data-class-slug');
+        const header = document.querySelector(`.class-group-header[data-class-slug="${slug}"]`);
+        
+        if (slug && states[slug] === false) {
+            // Restore collapsed state
+            el.classList.remove('show');
+            if (header) {
+                header.classList.add('collapsed');
+                header.setAttribute('aria-expanded', 'false');
+            }
+        } else if (slug && states[slug] === true) {
+            // Restore expanded state
+            el.classList.add('show');
+            if (header) {
+                header.classList.remove('collapsed');
+                header.setAttribute('aria-expanded', 'true');
+            }
+        }
+    });
+}
+
+// Restore saved filter & accordion states from localStorage on page load & initialize SortableJS
 document.addEventListener('DOMContentLoaded', function() {
     currentActiveStatus = localStorage.getItem(EXAM_FILTER_STORAGE_KEY) || 'ALL';
     executeFilters();
 
-    // Initialize SortableJS on each class group table
+    // 1. Restore individual class accordion expand/collapse states from browser cache
+    restoreAccordionStates();
+
+    // 2. Attach listeners to store any user expand/collapse click in localStorage
+    document.querySelectorAll('.class-group-collapse').forEach(el => {
+        el.addEventListener('shown.bs.collapse', function() {
+            const slug = this.getAttribute('data-class-slug');
+            saveAccordionState(slug, true);
+            const header = document.querySelector(`.class-group-header[data-class-slug="${slug}"]`);
+            if (header) {
+                header.classList.remove('collapsed');
+            }
+        });
+        el.addEventListener('hidden.bs.collapse', function() {
+            const slug = this.getAttribute('data-class-slug');
+            saveAccordionState(slug, false);
+            const header = document.querySelector(`.class-group-header[data-class-slug="${slug}"]`);
+            if (header) {
+                header.classList.add('collapsed');
+            }
+        });
+    });
+
+    // 3. Initialize SortableJS on each class group table
     document.querySelectorAll('.sortable-subject-tbody').forEach(tbody => {
         new Sortable(tbody, {
             handle: '.drag-handle',
@@ -557,6 +710,7 @@ function expandAllGroups() {
         const bsCollapse = bootstrap.Collapse.getOrCreateInstance(el);
         bsCollapse.show();
     });
+    saveAllAccordionStates(true);
 }
 
 function collapseAllGroups() {
@@ -564,6 +718,7 @@ function collapseAllGroups() {
         const bsCollapse = bootstrap.Collapse.getOrCreateInstance(el);
         bsCollapse.hide();
     });
+    saveAllAccordionStates(false);
 }
 </script>
 {% endblock %}
