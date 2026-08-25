@@ -16,6 +16,7 @@ urlpatterns = [
     path('submission/<uuid:submission_id>/delete/', views.delete_submission, name='delete_submission'),
     path('exam/<int:exam_id>/compiled-report/', views.compiled_exam_report, name='compiled_exam_report'),
     path('exam/<int:exam_id>/customize/', views.customize_exam_subjects, name='customize_exam_subjects'),
+    path('exam/<int:exam_id>/reorder-submissions/', views.reorder_submissions, name='reorder_submissions'),
 
     # Master Setup (One-time process: Master Subjects & Divisions)
     path('subjects/', views.manage_subjects, name='manage_subjects'),

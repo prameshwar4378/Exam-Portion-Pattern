@@ -62,7 +62,7 @@ def principal_dashboard(request):
 @login_required
 def exam_detail_dashboard(request, exam_id):
     exam = get_object_or_404(Exam, id=exam_id)
-    submissions = PortionSubmission.objects.filter(exam=exam).select_related('master_subject', 'division_ref')
+    submissions = PortionSubmission.objects.filter(exam=exam).select_related('master_subject', 'division_ref').order_by('order', 'subject_name', 'created_at')
     
     stats = {
         'total': submissions.count(),
@@ -191,7 +191,7 @@ def delete_submission(request, submission_id):
 def compiled_exam_report(request, exam_id):
     from .models import ExamTimetable
     exam = get_object_or_404(Exam, id=exam_id)
-    submissions = PortionSubmission.objects.filter(exam=exam).prefetch_related('pattern_items', 'division_ref')
+    submissions = PortionSubmission.objects.filter(exam=exam).prefetch_related('pattern_items', 'division_ref').order_by('order', 'subject_name', 'created_at')
     
     # Group submissions by class/grade
     from collections import defaultdict
@@ -246,6 +246,28 @@ def compiled_exam_report(request, exam_id):
         'exam': exam,
         'class_reports': class_reports
     })
+
+
+@login_required
+def reorder_submissions(request, exam_id):
+    import json
+    from django.http import JsonResponse
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
+
+    exam = get_object_or_404(Exam, id=exam_id)
+    try:
+        data = json.loads(request.body)
+        ordered_ids = data.get('ordered_ids', [])
+        if not isinstance(ordered_ids, list):
+            return JsonResponse({'status': 'error', 'message': 'ordered_ids must be a list.'}, status=400)
+
+        for index, sub_id in enumerate(ordered_ids):
+            PortionSubmission.objects.filter(id=sub_id, exam=exam).update(order=index)
+
+        return JsonResponse({'status': 'success', 'message': 'Subject sequence updated successfully!'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 
 

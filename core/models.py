@@ -86,6 +86,8 @@ class PortionSubmission(models.Model):
     total_marks = models.PositiveIntegerField(default=80)
     duration_minutes = models.PositiveIntegerField(default=180, help_text="Exam duration in minutes")
     
+    order = models.PositiveIntegerField(default=0, help_text="Sequence order of subject for display and reports")
+
     # Submission Metadata
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     principal_remarks = models.TextField(blank=True, help_text="Remarks from Principal/Admin")
@@ -94,7 +96,7 @@ class PortionSubmission(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['class_name', 'subject_name']
+        ordering = ['order', 'class_name', 'subject_name']
 
     @property
     def display_class_name(self):

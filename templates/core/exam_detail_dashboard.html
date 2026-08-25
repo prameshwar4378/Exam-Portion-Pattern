@@ -2,6 +2,64 @@
 
 {% block title %}{{ active_exam.title }} Dashboard - Exam Portion Pattern{% endblock %}
 
+{% block extra_css %}
+<style>
+.stat-filter-card {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border 0.15s ease;
+    border: 3px solid transparent !important;
+}
+
+.stat-filter-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+.stat-filter-card.active-filter {
+    border: 3px dotted #ffffff !important;
+    box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.35), 0 12px 25px rgba(0, 0, 0, 0.25) !important;
+    transform: translateY(-3px) scale(1.02);
+}
+
+.active-filter-badge {
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+/* Drag & Drop Reordering Styles */
+.drag-handle {
+    cursor: grab !important;
+    touch-action: none;
+    user-select: none;
+    color: #94a3b8;
+    transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.drag-handle:hover {
+    color: #4f46e5 !important;
+    transform: scale(1.15);
+}
+
+.drag-handle:active {
+    cursor: grabbing !important;
+}
+
+.sortable-ghost {
+    opacity: 0.45 !important;
+    background-color: #eef2ff !important;
+    border: 2px dashed #4f46e5 !important;
+}
+
+.sortable-chosen {
+    background-color: #f8fafc !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-lg-4">
     <!-- Header Row -->
@@ -44,10 +102,10 @@
         </div>
     </div>
 
-    <!-- Stat Summary Cards for this Exam (Compact 5-Column Colored Grids) -->
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-5 g-2.5 mb-4">
+    <!-- Stat Summary Cards for this Exam (Interactive Filter Grids with LocalStorage Cache) -->
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-5 g-2.5 mb-4" id="statFilterContainer">
         <div class="col">
-            <div class="stat-card-colored stat-bg-total">
+            <div class="stat-card-colored stat-bg-total stat-filter-card" data-status-filter="ALL" onclick="handleFilterClick('ALL')" onkeydown="if(event.key==='Enter'||event.key===' ') handleFilterClick('ALL')" role="button" tabindex="0" title="Click to show All Records">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="text-white-50 text-uppercase small fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Total Requests</span>
                     <i class="bi bi-files fs-5 text-white-50"></i>
@@ -56,7 +114,7 @@
             </div>
         </div>
         <div class="col">
-            <div class="stat-card-colored stat-bg-pending">
+            <div class="stat-card-colored stat-bg-pending stat-filter-card" data-status-filter="PENDING" onclick="handleFilterClick('PENDING')" onkeydown="if(event.key==='Enter'||event.key===' ') handleFilterClick('PENDING')" role="button" tabindex="0" title="Click to filter by Pending Records">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="text-white-50 text-uppercase small fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Pending</span>
                     <i class="bi bi-clock-history fs-5 text-white-50"></i>
@@ -65,7 +123,7 @@
             </div>
         </div>
         <div class="col">
-            <div class="stat-card-colored stat-bg-submitted">
+            <div class="stat-card-colored stat-bg-submitted stat-filter-card" data-status-filter="SUBMITTED" onclick="handleFilterClick('SUBMITTED')" onkeydown="if(event.key==='Enter'||event.key===' ') handleFilterClick('SUBMITTED')" role="button" tabindex="0" title="Click to filter by Submitted Records">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="text-white-50 text-uppercase small fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Submitted</span>
                     <i class="bi bi-send-check fs-5 text-white-50"></i>
@@ -74,7 +132,7 @@
             </div>
         </div>
         <div class="col">
-            <div class="stat-card-colored stat-bg-approved">
+            <div class="stat-card-colored stat-bg-approved stat-filter-card" data-status-filter="APPROVED" onclick="handleFilterClick('APPROVED')" onkeydown="if(event.key==='Enter'||event.key===' ') handleFilterClick('APPROVED')" role="button" tabindex="0" title="Click to filter by Approved Records">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="text-white-50 text-uppercase small fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Approved</span>
                     <i class="bi bi-patch-check fs-5 text-white-50"></i>
@@ -83,7 +141,7 @@
             </div>
         </div>
         <div class="col">
-            <div class="stat-card-colored stat-bg-revision">
+            <div class="stat-card-colored stat-bg-revision stat-filter-card" data-status-filter="REVISION" onclick="handleFilterClick('REVISION')" onkeydown="if(event.key==='Enter'||event.key===' ') handleFilterClick('REVISION')" role="button" tabindex="0" title="Click to filter by Revision Requested Records">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="text-white-50 text-uppercase small fw-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Revision Req.</span>
                     <i class="bi bi-arrow-repeat fs-5 text-white-50"></i>
@@ -96,26 +154,68 @@
 
 
     <!-- Portion Requests Grouped by Class/Grade (Collapsible Accordions) -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center mb-3 gap-3">
         <div>
-            <h5 class="fw-bold mb-0">Syllabus Portion Collection List</h5>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h5 class="fw-bold mb-0">Syllabus Portion Collection List</h5>
+                <span id="activeFilterBadge" class="badge bg-dark text-white rounded-pill px-3 py-1.5 active-filter-badge d-none"></span>
+                <span id="searchResultBadge" class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1.5 active-filter-badge d-none"></span>
+            </div>
             <span class="text-muted small">Grouped by Class & Grade for <strong>{{ active_exam.title }}</strong></span>
         </div>
-        <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="expandAllGroups()">
-                <i class="bi bi-arrows-expand me-1"></i> Expand All
-            </button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="collapseAllGroups()">
-                <i class="bi bi-arrows-collapse me-1"></i> Collapse All
-            </button>
-            <a href="{% url 'customize_exam_subjects' active_exam.id %}" class="btn btn-sm btn-warning text-dark font-semibold">
+
+        <div class="d-flex align-items-center gap-2 flex-wrap flex-sm-nowrap">
+            <!-- Fast Local Teacher / Subject Search Input -->
+            <div class="input-group input-group-sm search-teacher-box" style="min-width: 250px; max-width: 320px;">
+                <span class="input-group-text bg-white border-end-0 text-muted ps-2.5">
+                    <i class="bi bi-search text-primary"></i>
+                </span>
+                <input type="text" id="teacherSearchInput" class="form-control border-start-0 border-end-0 ps-1" placeholder="Search Teacher or Subject..." oninput="handleSearchInput(this.value)" autocomplete="off">
+                <button type="button" id="clearSearchBtn" class="btn btn-outline-secondary border-start-0 bg-white text-muted d-none" onclick="clearTeacherSearch()" title="Clear search">
+                    <i class="bi bi-x-circle-fill"></i>
+                </button>
+            </div>
+
+            <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary" onclick="expandAllGroups()" title="Expand All Classes">
+                    <i class="bi bi-arrows-expand me-1"></i> Expand All
+                </button>
+                <button type="button" class="btn btn-outline-secondary" onclick="collapseAllGroups()" title="Collapse All Classes">
+                    <i class="bi bi-arrows-collapse me-1"></i> Collapse All
+                </button>
+            </div>
+            <a href="{% url 'customize_exam_subjects' active_exam.id %}" class="btn btn-sm btn-warning text-dark font-semibold text-nowrap">
                 <i class="bi bi-sliders me-1"></i> Customize Subjects & Divisions
             </a>
         </div>
     </div>
 
+    <!-- Empty Filter Notice Card -->
+    <div id="noMatchingFilterCard" class="card glass-card p-5 text-center d-none mb-3">
+        <i class="bi bi-funnel-fill display-5 d-block text-muted mb-2"></i>
+        <h5 class="fw-bold text-dark mb-1">No Records Found</h5>
+        <p class="text-muted small mb-3" id="noMatchingFilterText">No records match the selected status filter for this examination.</p>
+        <div>
+            <button type="button" class="btn btn-primary btn-sm rounded-pill px-4" onclick="handleFilterClick('ALL')">
+                <i class="bi bi-arrow-counterclockwise me-1"></i> View All Records
+            </button>
+        </div>
+    </div>
+
+    <!-- Floating Reorder Toast Notification -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+        <div id="reorderToast" class="toast align-items-center text-white bg-success border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body fw-bold d-flex align-items-center">
+                    <i class="bi bi-check2-circle fs-5 me-2"></i> <span id="reorderToastMsg">Subject order saved for reports!</span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
     {% for group in submission_groups %}
-    <div class="card glass-card mb-3 overflow-hidden shadow-sm border">
+    <div class="card glass-card mb-3 overflow-hidden shadow-sm border class-group-card">
         <!-- Class Group Header (Click to Expand / Collapse) -->
         <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center" 
              data-bs-toggle="collapse" 
@@ -159,25 +259,29 @@
         <div id="classGroup-{{ forloop.counter }}" class="collapse show class-group-collapse">
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0 sortable-subject-table">
                         <thead class="table-light border-bottom">
                             <tr class="small text-uppercase text-muted">
-                                <th style="width: 25%;" class="ps-4">Subject</th>
-                                <th style="width: 22%;">Teacher Assigned</th>
-                                <th style="width: 15%;">Status</th>
-                                <th style="width: 15%;">Marks / Time</th>
-                                <th style="width: 13%;">Teacher Link</th>
+                                <th style="width: 4%;" class="text-center ps-3" title="Drag to reorder subjects"><i class="bi bi-arrows-move text-muted"></i></th>
+                                <th style="width: 24%;">Subject</th>
+                                <th style="width: 20%;">Teacher Assigned</th>
+                                <th style="width: 14%;">Status</th>
+                                <th style="width: 14%;">Marks / Time</th>
+                                <th style="width: 14%;">Teacher Link</th>
                                 <th style="width: 10%;" class="text-end pe-4">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody class="sortable-subject-tbody">
                             {% for sub in group.submissions %}
-                            <tr>
-                                <td class="ps-4">
+                            <tr class="submission-row" data-status="{{ sub.status }}" data-submission-id="{{ sub.id }}" data-teacher-name="{{ sub.teacher_name|lower }}" data-subject-name="{{ sub.subject_name|lower }}" data-class-name="{{ group.class_name|lower }}">
+                                <td class="text-center ps-3 drag-handle" title="Drag row up or down to change subject sequence">
+                                    <i class="bi bi-grip-vertical fs-5"></i>
+                                </td>
+                                <td>
                                     <span class="fw-bold text-primary fs-6">{{ sub.subject_name }}</span>
                                 </td>
                                 <td>
-                                    <i class="bi bi-person me-1 text-muted"></i> {{ sub.teacher_name }}
+                                    <i class="bi bi-person me-1 text-muted"></i> <span class="teacher-name-label">{{ sub.teacher_name }}</span>
                                 </td>
                                 <td>
                                     {% if sub.status == 'PENDING' %}
@@ -241,7 +345,205 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- SortableJS CDN for Drag & Drop Reordering -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
+const EXAM_FILTER_STORAGE_KEY = 'exam_detail_filter_{{ active_exam.id }}';
+let currentActiveStatus = 'ALL';
+let currentSearchQuery = '';
+
+function executeFilters() {
+    const validStatuses = ['ALL', 'PENDING', 'SUBMITTED', 'APPROVED', 'REVISION'];
+    const status = validStatuses.includes(currentActiveStatus) ? currentActiveStatus : 'ALL';
+    const query = (currentSearchQuery || '').trim().toLowerCase();
+
+    // 1. Update active styling on stat filter cards (dotted border)
+    document.querySelectorAll('.stat-filter-card').forEach(card => {
+        const cardStatus = card.getAttribute('data-status-filter');
+        if (cardStatus === status) {
+            card.classList.add('active-filter');
+        } else {
+            card.classList.remove('active-filter');
+        }
+    });
+
+    // 2. Update active filter badge indicator in list header
+    const filterBadge = document.getElementById('activeFilterBadge');
+    if (filterBadge) {
+        if (status === 'ALL') {
+            filterBadge.classList.add('d-none');
+            filterBadge.textContent = '';
+        } else {
+            filterBadge.classList.remove('d-none');
+            const statusLabels = {
+                'PENDING': 'Showing: Pending Only',
+                'SUBMITTED': 'Showing: Submitted Only',
+                'APPROVED': 'Showing: Approved Only',
+                'REVISION': 'Showing: Revision Req. Only'
+            };
+            filterBadge.innerHTML = `<i class="bi bi-funnel-fill me-1"></i>${statusLabels[status] || status} <span role="button" onclick="handleFilterClick('ALL')" class="ms-1 text-white-50 fw-bold" style="cursor: pointer;" title="Clear status filter">&times;</span>`;
+        }
+    }
+
+    // 3. Update search result badge
+    const searchBadge = document.getElementById('searchResultBadge');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    if (clearSearchBtn) {
+        if (query) {
+            clearSearchBtn.classList.remove('d-none');
+        } else {
+            clearSearchBtn.classList.add('d-none');
+        }
+    }
+
+    // 4. Filter rows & class cards
+    let totalVisibleRows = 0;
+    const classCards = document.querySelectorAll('.class-group-card');
+
+    classCards.forEach(card => {
+        const rows = card.querySelectorAll('.submission-row');
+        let visibleRowsInCard = 0;
+
+        rows.forEach(row => {
+            const rowStatus = row.getAttribute('data-status');
+            const teacherName = (row.getAttribute('data-teacher-name') || '').toLowerCase();
+            const subjectName = (row.getAttribute('data-subject-name') || '').toLowerCase();
+            const className = (row.getAttribute('data-class-name') || '').toLowerCase();
+
+            const matchesStatus = (status === 'ALL' || rowStatus === status);
+            const matchesSearch = (!query || teacherName.includes(query) || subjectName.includes(query) || className.includes(query));
+
+            if (matchesStatus && matchesSearch) {
+                row.style.display = '';
+                visibleRowsInCard++;
+                totalVisibleRows++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        if (visibleRowsInCard === 0) {
+            card.style.display = 'none';
+        } else {
+            card.style.display = '';
+            // If searching, auto-expand matching accordion
+            if (query) {
+                const collapseEl = card.querySelector('.class-group-collapse');
+                if (collapseEl && !collapseEl.classList.contains('show')) {
+                    bootstrap.Collapse.getOrCreateInstance(collapseEl).show();
+                }
+            }
+        }
+    });
+
+    if (searchBadge) {
+        if (query) {
+            searchBadge.classList.remove('d-none');
+            searchBadge.innerHTML = `<i class="bi bi-person-search me-1"></i>"${currentSearchQuery}": ${totalVisibleRows} match${totalVisibleRows === 1 ? '' : 'es'} <span role="button" onclick="clearTeacherSearch()" class="ms-1 text-primary fw-bold" style="cursor: pointer;" title="Clear search">&times;</span>`;
+        } else {
+            searchBadge.classList.add('d-none');
+        }
+    }
+
+    // 5. Handle 0 matching rows empty-state card
+    const noMatchingCard = document.getElementById('noMatchingFilterCard');
+    if (noMatchingCard) {
+        if (totalVisibleRows === 0 && classCards.length > 0) {
+            noMatchingCard.classList.remove('d-none');
+            const filterText = document.getElementById('noMatchingFilterText');
+            if (filterText) {
+                if (query && status !== 'ALL') {
+                    filterText.textContent = `No ${status.toLowerCase()} records matching "${currentSearchQuery}" found.`;
+                } else if (query) {
+                    filterText.textContent = `No teacher or subject records matching "${currentSearchQuery}" found.`;
+                } else {
+                    const labelName = status.toLowerCase();
+                    filterText.textContent = `No ${labelName} portion records found for this examination.`;
+                }
+            }
+        } else {
+            noMatchingCard.classList.add('d-none');
+        }
+    }
+}
+
+function applyStatusFilter(status, saveToStorage = true) {
+    currentActiveStatus = status;
+    if (saveToStorage) {
+        localStorage.setItem(EXAM_FILTER_STORAGE_KEY, status);
+    }
+    executeFilters();
+}
+
+function handleFilterClick(status) {
+    applyStatusFilter(status, true);
+}
+
+function handleSearchInput(value) {
+    currentSearchQuery = value;
+    executeFilters();
+}
+
+function clearTeacherSearch() {
+    const inputEl = document.getElementById('teacherSearchInput');
+    if (inputEl) {
+        inputEl.value = '';
+    }
+    currentSearchQuery = '';
+    executeFilters();
+}
+
+// Restore saved filter from localStorage on page load & initialize SortableJS
+document.addEventListener('DOMContentLoaded', function() {
+    currentActiveStatus = localStorage.getItem(EXAM_FILTER_STORAGE_KEY) || 'ALL';
+    executeFilters();
+
+    // Initialize SortableJS on each class group table
+    document.querySelectorAll('.sortable-subject-tbody').forEach(tbody => {
+        new Sortable(tbody, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onEnd: function() {
+                // Collect ordered submission UUIDs from this table
+                const rows = Array.from(tbody.querySelectorAll('.submission-row'));
+                const orderedIds = rows.map(r => r.getAttribute('data-submission-id')).filter(Boolean);
+
+                if (orderedIds.length > 0) {
+                    fetch("{% url 'reorder_submissions' active_exam.id %}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({ ordered_ids: orderedIds })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showReorderToast('✓ Subject sequence saved for reports!');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error saving subject order:', err);
+                    });
+                }
+            }
+        });
+    });
+});
+
+function showReorderToast(msg) {
+    const toastEl = document.getElementById('reorderToast');
+    const toastMsg = document.getElementById('reorderToastMsg');
+    if (toastEl) {
+        if (toastMsg && msg) toastMsg.textContent = msg;
+        const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 2500 });
+        toast.show();
+    }
+}
+
 function copyLink(elementId) {
     const inputElement = document.getElementById(elementId);
     inputElement.select();
