@@ -104,6 +104,17 @@
                                 <a href="{% url 'compiled_exam_report' item.exam.id %}" class="btn btn-outline-dark btn-sm" title="Compiled Syllabus Report">
                                     <i class="bi bi-file-earmark-pdf text-danger"></i>
                                 </a>
+                                <button type="button"
+                                    class="btn btn-outline-danger btn-sm"
+                                    title="Delete Exam"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#deleteExamModal"
+                                    data-delete-url="{% url 'delete_exam' item.exam.id %}"
+                                    data-exam-title="{{ item.exam.title }}"
+                                    data-exam-year="{{ item.exam.academic_year }}"
+                                    data-exam-total="{{ item.total }}">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -124,6 +135,64 @@
         </div>
     </div>
 </div>
+
+<!-- Delete Exam Confirmation Modal -->
+<div class="modal fade" id="deleteExamModal" tabindex="-1" aria-labelledby="deleteExamModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header bg-danger text-white py-3">
+                <h5 class="modal-title fw-bold" id="deleteExamModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Examination
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="deleteExamForm" method="post" action="">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <p class="mb-2">
+                        Are you sure you want to permanently delete
+                        <strong id="deleteExamTitle"></strong>
+                        (<span id="deleteExamYear" class="font-monospace"></span>)?
+                    </p>
+                    <div class="alert alert-danger border-0 bg-danger-subtle text-danger-emphasis small mb-0">
+                        <i class="bi bi-trash3-fill me-1"></i>
+                        This will permanently delete <strong id="deleteExamCount">0</strong> portion submission record(s) along with all associated question patterns and exam timetables. This action cannot be undone.
+                    </div>
+                </div>
+                <div class="modal-footer bg-light px-4 py-3">
+                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger fw-bold px-4 shadow-sm">
+                        <i class="bi bi-trash-fill me-1"></i> Yes, Delete Exam
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const deleteExamModal = document.getElementById('deleteExamModal');
+    if (!deleteExamModal) return;
+
+    deleteExamModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        if (!button) return;
+
+        const form = document.getElementById('deleteExamForm');
+        const titleEl = document.getElementById('deleteExamTitle');
+        const yearEl = document.getElementById('deleteExamYear');
+        const countEl = document.getElementById('deleteExamCount');
+
+        if (form) form.setAttribute('action', button.getAttribute('data-delete-url') || '');
+        if (titleEl) titleEl.textContent = button.getAttribute('data-exam-title') || '';
+        if (yearEl) yearEl.textContent = button.getAttribute('data-exam-year') || '';
+        if (countEl) countEl.textContent = button.getAttribute('data-exam-total') || '0';
+    });
+});
+</script>
 {% endblock %}
 
 

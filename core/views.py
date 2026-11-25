@@ -131,6 +131,19 @@ def edit_exam(request, exam_id):
     return render(request, 'core/exam_form.html', {'form': form, 'edit_instance': exam})
 
 @login_required
+def delete_exam(request, exam_id):
+    """Delete an exam and cascade-delete all related submissions, patterns, and timetables."""
+    if request.method != 'POST':
+        messages.warning(request, "Please use the Delete button to confirm exam deletion.")
+        return redirect('principal_dashboard')
+
+    exam = get_object_or_404(Exam, id=exam_id)
+    exam_title = exam.title
+    exam.delete()
+    messages.success(request, f"Exam '{exam_title}' and all its related records were deleted successfully.")
+    return redirect('principal_dashboard')
+
+@login_required
 def toggle_exam_active(request, exam_id):
     exam = get_object_or_404(Exam, id=exam_id)
     exam.is_active = not exam.is_active
