@@ -186,6 +186,17 @@ def edit_exam(request, exam_id):
 
 @login_required
 @require_POST
+def delete_exam(request, exam_id):
+    """Delete an exam and cascade-delete all related submissions, patterns, and timetables."""
+    exam = get_object_or_404(Exam, id=exam_id)
+    exam_title = exam.title
+    exam.delete()
+    messages.success(request, f"Exam '{exam_title}' and all its related records were deleted successfully.")
+    return redirect('principal_dashboard')
+
+
+@login_required
+@require_POST
 def toggle_exam_active(request, exam_id):
     exam = get_object_or_404(Exam, id=exam_id)
     exam.is_active = not exam.is_active

@@ -9,6 +9,7 @@ urlpatterns = [
     path('', views.principal_dashboard, name='principal_dashboard'),
     path('exam/create/', views.create_exam, name='create_exam'),
     path('exam/<int:exam_id>/edit/', views.edit_exam, name='edit_exam'),
+    path('exam/<int:exam_id>/delete/', views.delete_exam, name='delete_exam'),
     path('exam/<int:exam_id>/toggle-active/', views.toggle_exam_active, name='toggle_exam_active'),
     path('exam/<int:exam_id>/dashboard/', views.exam_detail_dashboard, name='exam_detail_dashboard'),
 

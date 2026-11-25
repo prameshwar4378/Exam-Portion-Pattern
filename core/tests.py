@@ -194,6 +194,7 @@ class PerformanceAndCompatibilityTests(TestCase):
 
         get_routes = [
             reverse('toggle_exam_active', args=[self.exam.id]),
+            reverse('delete_exam', args=[self.other_exam.id]),
             reverse('delete_submission', args=[sub.id]),
             reverse('delete_subject', args=[free_subj.id]),
             reverse('delete_division', args=[free_div.id]),
@@ -209,3 +210,44 @@ class PerformanceAndCompatibilityTests(TestCase):
         self.assertEqual(self.client.post(reverse('delete_division', args=[free_div.id])).status_code, 302)
         self.assertEqual(self.client.post(reverse('delete_timetable', args=[tt.id])).status_code, 302)
         self.assertEqual(self.client.post(reverse('logout')).status_code, 302)
+
+    def test_delete_exam_cascades_invalidates_cache_and_renders_modal(self):
+        # Anonymous POST must redirect to login without deleting
+        anon_resp = self.client.post(reverse('delete_exam', args=[self.exam.id]))
+        self.assertEqual(anon_resp.status_code, 302)
+        self.assertIn(reverse('login'), anon_resp.url)
+        self.assertTrue(Exam.objects.filter(id=self.exam.id).exists())
+
+        self.client.force_login(self.user)
+        dash_resp = self.client.get(reverse('principal_dashboard'))
+        self.assertEqual(dash_resp.status_code, 200)
+        self.assertContains(dash_resp, reverse('delete_exam', args=[self.exam.id]))
+        self.assertContains(dash_resp, 'id="deleteExamModal"')
+        self.assertContains(dash_resp, 'id="deleteExamForm"')
+
+        # Prime portal API cache and capture ETag before deletion
+        r1 = self.client.get(reverse('api_teacher_portal'))
+        etag1 = r1.get('ETag')
+
+        with self.captureOnCommitCallbacks(execute=True):
+            del_resp = self.client.post(reverse('delete_exam', args=[self.exam.id]))
+        self.assertRedirects(del_resp, reverse('principal_dashboard'))
+
+        self.assertFalse(Exam.objects.filter(id=self.exam.id).exists())
+        self.assertFalse(PortionSubmission.objects.filter(exam=self.exam).exists())
+        self.assertFalse(QuestionPatternItem.objects.filter(submission__exam_id=self.exam.id).exists())
+        self.assertFalse(ExamTimetable.objects.filter(exam=self.exam).exists())
+        self.assertFalse(TimetableEntry.objects.filter(timetable=self.tt).exists())
+
+        # Master data and other exams stay intact
+        self.assertTrue(Exam.objects.filter(id=self.other_exam.id).exists())
+        self.assertEqual(MasterSubject.objects.count(), 4)
+        self.assertEqual(Division.objects.count(), 4)
+
+        # Missing exam returns 404
+        self.assertEqual(self.client.post(reverse('delete_exam', args=[99999])).status_code, 404)
+
+        # Cache version should have bumped on commit
+        r2 = self.client.get(reverse('api_teacher_portal'))
+        self.assertNotEqual(r2.get('ETag'), etag1)
+        self.assertEqual(r2.json()['active_exams'], [])
