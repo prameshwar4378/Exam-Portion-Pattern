@@ -19,9 +19,12 @@
             <a href="{% url 'print_submission' submission.id %}" target="_blank" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
                 <i class="bi bi-printer me-1"></i> Print Preview
             </a>
-            <a href="{% url 'delete_submission' submission.id %}" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold shadow-sm" onclick="return confirm('Are you sure you want to clear and reset all teacher-submitted content for {{ submission.subject_name }} ({{ submission.display_class_name }}) back to Pending?');">
-                <i class="bi bi-eraser-fill me-1"></i> Clear Submission
-            </a>
+            <form method="post" action="{% url 'delete_submission' submission.id %}" class="d-inline" onsubmit="return confirm('Are you sure you want to clear and reset all teacher-submitted content for {{ submission.subject_name|escapejs }} ({{ submission.display_class_name|escapejs }}) back to Pending?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold shadow-sm" data-loading-text="Clearing...">
+                    <i class="bi bi-eraser-fill me-1"></i> Clear Submission
+                </button>
+            </form>
         </div>
     </div>
 
@@ -124,10 +127,10 @@
             <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3">
                 <span class="text-muted small">Teachers will see your remarks if revision is requested.</span>
                 <div class="d-flex gap-2 flex-wrap">
-                    <button type="submit" name="action" value="request_revision" class="btn btn-outline-warning rounded-pill px-3 py-2 fw-bold">
+                    <button type="submit" name="action" value="request_revision" class="btn btn-outline-warning rounded-pill px-3 py-2 fw-bold" data-loading-text="Requesting...">
                         <i class="bi bi-arrow-repeat me-1"></i> Request Revision
                     </button>
-                    <button type="submit" name="action" value="approve" class="btn btn-success rounded-pill px-4 py-2 fw-bold shadow-sm">
+                    <button type="submit" name="action" value="approve" class="btn btn-success rounded-pill px-4 py-2 fw-bold shadow-sm" data-loading-text="Approving...">
                         <i class="bi bi-check-circle me-1"></i> Approve Portion & Pattern
                     </button>
                 </div>

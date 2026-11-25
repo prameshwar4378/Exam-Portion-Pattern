@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-{% load custom_tags %}
 
 {% block title %}Subject Customization - {{ exam.title }}{% endblock %}
 
@@ -103,7 +102,7 @@
                         <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-book me-2"></i>Subject-Wise Allocation Management</h5>
                         <p class="text-muted small mb-0">Select divisions offered for each master subject in {{ exam.title }}</p>
                     </div>
-                    <span class="badge bg-light text-dark border">{{ subjects.count }} Master Subjects Available</span>
+                    <span class="badge bg-light text-dark border">{{ subjects|length }} Master Subjects Available</span>
                 </div>
 
                 <div class="accordion" id="subjectsAccordion">
@@ -156,64 +155,17 @@
                 </div>
             </div>
 
-            <!-- MODE 2: CLASS / GRADE-WISE VIEW -->
+            <!-- MODE 2: CLASS / GRADE-WISE VIEW (Lazy-rendered on switch to cut initial DOM by ~50%) -->
             <div id="classWiseView" class="card glass-card p-4 mb-4 d-none">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
                         <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-mortarboard-fill me-2"></i>Class / Grade-Wise Allocation Management</h5>
                         <p class="text-muted small mb-0">Select subjects offered for each class / grade division in {{ exam.title }}</p>
                     </div>
-                    <span class="badge bg-light text-dark border">{{ divisions.count }} Classes / Divisions Available</span>
+                    <span class="badge bg-light text-dark border">{{ divisions|length }} Classes / Divisions Available</span>
                 </div>
 
-                <div class="accordion" id="classesAccordion">
-                    {% for div in divisions %}
-                    <div class="accordion-item mb-3 border rounded-3 overflow-hidden shadow-sm">
-                        <h2 class="accordion-header" id="heading-class-{{ div.id }}">
-                            <button class="accordion-button bg-light fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-class-{{ div.id }}" aria-expanded="true">
-                                <i class="bi bi-mortarboard text-primary me-2"></i> {{ div }}
-                            </button>
-                        </h2>
-                        <div id="collapse-class-{{ div.id }}" class="accordion-collapse collapse show">
-                            <div class="accordion-body p-4 bg-white">
-                                <div class="d-flex justify-content-between align-items-center mb-3">
-                                    <p class="text-muted small mb-0">Click any subject pill to enable (Green) or disable (Red) for <strong>{{ div }}</strong>:</p>
-                                    <div class="btn-group btn-group-sm">
-                                        <button type="button" class="btn btn-outline-success btn-sm" onclick="bulkSetClass('{{ div.id }}', true)">Enable All Subjects</button>
-                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="bulkSetClass('{{ div.id }}', false)">Disable All Subjects</button>
-                                    </div>
-                                </div>
-                                
-                                <div class="row g-2 row-cols-2 row-cols-sm-3 row-cols-md-4">
-                                    {% for subj in subjects %}
-                                        <div class="col">
-                                            {% if not has_existing_allocations or div.id in subj.allocated_div_ids %}
-                                                <div class="division-card h-100 py-2 px-3 card-enabled" id="card_class_{{ div.id }}_subj_{{ subj.id }}" onclick="togglePair('{{ subj.id }}', '{{ div.id }}')">
-                                                    <div class="d-flex justify-content-between align-items-center w-100">
-                                                        <span class="div-title text-dark fw-semibold text-truncate me-2">{{ subj.name }}</span>
-                                                        <span class="badge status-pill bg-success" id="pill_class_{{ div.id }}_subj_{{ subj.id }}">
-                                                            <i class="bi bi-check-lg fw-bold"></i>
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            {% else %}
-                                                <div class="division-card h-100 py-2 px-3 card-disabled" id="card_class_{{ div.id }}_subj_{{ subj.id }}" onclick="togglePair('{{ subj.id }}', '{{ div.id }}')">
-                                                    <div class="d-flex justify-content-between align-items-center w-100">
-                                                        <span class="div-title text-dark fw-semibold text-truncate me-2">{{ subj.name }}</span>
-                                                        <span class="badge status-pill bg-danger" id="pill_class_{{ div.id }}_subj_{{ subj.id }}">
-                                                            <i class="bi bi-x-lg fw-bold"></i>
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            {% endif %}
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
+                <div class="accordion" id="classesAccordion"></div>
             </div>
 
         {% endif %}
@@ -225,7 +177,7 @@
                 <h6 class="fw-bold mb-0">Ready to save allocations?</h6>
                 <small class="text-muted">Saving will update all portion requests for teachers across all subjects and classes.</small>
             </div>
-            <button type="submit" class="btn btn-success btn-lg px-4 shadow">
+            <button type="submit" class="btn btn-success btn-lg px-4 shadow" data-loading-text="Saving Allocations...">
                 <i class="bi bi-check-all me-1"></i> Save Subject & Division Allocations
             </button>
         </div>
@@ -307,7 +259,7 @@
                     <div class="modal-footer bg-light px-4 py-3">
                         <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancel</button>
                         {% if other_exams %}
-                        <button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm">
+                        <button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm" data-loading-text="Copying Allocations...">
                             <i class="bi bi-copy me-1"></i> Copy Allocations Now
                         </button>
                         {% endif %}
@@ -321,6 +273,78 @@
 
 {% block extra_js %}
 <script>
+const CUSTOMIZE_SUBJECTS = [
+    {% for subj in subjects %}{ id: "{{ subj.id }}", name: "{{ subj.name|escapejs }}" }{% if not forloop.last %},{% endif %}{% endfor %}
+];
+const CUSTOMIZE_DIVISIONS = [
+    {% for div in divisions %}{ id: "{{ div.id }}", name: "{{ div|escapejs }}" }{% if not forloop.last %},{% endif %}{% endfor %}
+];
+let classViewRendered = false;
+
+function escapeHtmlText(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function renderClassWiseView() {
+    if (classViewRendered) return;
+    const container = document.getElementById('classesAccordion');
+    if (!container) return;
+
+    const parts = [];
+    for (let i = 0; i < CUSTOMIZE_DIVISIONS.length; i++) {
+        const div = CUSTOMIZE_DIVISIONS[i];
+        const safeDivName = escapeHtmlText(div.name);
+        let cardsHtml = '';
+        for (let j = 0; j < CUSTOMIZE_SUBJECTS.length; j++) {
+            const subj = CUSTOMIZE_SUBJECTS[j];
+            const safeSubjName = escapeHtmlText(subj.name);
+            const chk = document.getElementById(`chk_${subj.id}_${div.id}`);
+            const enabled = chk ? chk.checked : true;
+            const cardCls = enabled ? 'card-enabled' : 'card-disabled';
+            const pillCls = enabled ? 'bg-success' : 'bg-danger';
+            const iconCls = enabled ? 'bi-check-lg' : 'bi-x-lg';
+
+            cardsHtml += `
+                <div class="col">
+                    <div class="division-card h-100 py-2 px-3 ${cardCls}" id="card_class_${div.id}_subj_${subj.id}" onclick="togglePair('${subj.id}', '${div.id}')">
+                        <div class="d-flex justify-content-between align-items-center w-100">
+                            <span class="div-title text-dark fw-semibold text-truncate me-2">${safeSubjName}</span>
+                            <span class="badge status-pill ${pillCls}" id="pill_class_${div.id}_subj_${subj.id}">
+                                <i class="bi ${iconCls} fw-bold"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        parts.push(`
+            <div class="accordion-item mb-3 border rounded-3 overflow-hidden shadow-sm">
+                <h2 class="accordion-header" id="heading-class-${div.id}">
+                    <button class="accordion-button bg-light fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-class-${div.id}" aria-expanded="true">
+                        <i class="bi bi-mortarboard text-primary me-2"></i> ${safeDivName}
+                    </button>
+                </h2>
+                <div id="collapse-class-${div.id}" class="accordion-collapse collapse show">
+                    <div class="accordion-body p-4 bg-white">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <p class="text-muted small mb-0">Click any subject pill to enable (Green) or disable (Red) for <strong>${safeDivName}</strong>:</p>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="bulkSetClass('${div.id}', true)">Enable All Subjects</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="bulkSetClass('${div.id}', false)">Disable All Subjects</button>
+                            </div>
+                        </div>
+                        <div class="row g-2 row-cols-2 row-cols-sm-3 row-cols-md-4">${cardsHtml}</div>
+                    </div>
+                </div>
+            </div>`);
+    }
+
+    container.innerHTML = parts.join('');
+    classViewRendered = true;
+}
+
 function switchView(mode) {
     const subjView = document.getElementById('subjectWiseView');
     const classView = document.getElementById('classWiseView');
@@ -335,6 +359,7 @@ function switchView(mode) {
         btnClass.classList.add('btn-outline-primary');
         btnClass.classList.remove('btn-primary', 'active');
     } else {
+        renderClassWiseView();
         classView.classList.remove('d-none');
         subjView.classList.add('d-none');
         btnClass.classList.add('btn-primary', 'active');
@@ -395,7 +420,8 @@ function updatePillUI(card, pill, isEnabled) {
 
 
 function bulkSetSubject(subjId, enable) {
-    const hiddenInputs = document.querySelectorAll(`[id^="chk_${subjId}_"]`);
+    const store = document.getElementById('checkboxContainer') || document;
+    const hiddenInputs = store.querySelectorAll(`[id^="chk_${subjId}_"]`);
     hiddenInputs.forEach(chk => {
         const parts = chk.id.split('_');
         if (parts.length === 3) {
@@ -406,7 +432,8 @@ function bulkSetSubject(subjId, enable) {
 }
 
 function bulkSetClass(divId, enable) {
-    const hiddenInputs = document.querySelectorAll(`[id$="_${divId}"]`);
+    const store = document.getElementById('checkboxContainer') || document;
+    const hiddenInputs = store.querySelectorAll(`[id$="_${divId}"]`);
     hiddenInputs.forEach(chk => {
         const parts = chk.id.split('_');
         if (parts.length === 3) {

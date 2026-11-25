@@ -157,15 +157,18 @@
         </div>
 
         <div class="d-flex gap-2 flex-wrap">
-            {% if active_exam.is_active %}
-                <a href="{% url 'toggle_exam_active' active_exam.id %}" class="btn btn-outline-danger btn-sm px-2.5 py-1">
-                    <i class="bi bi-eye-slash-fill me-1"></i> Make Inactive
-                </a>
-            {% else %}
-                <a href="{% url 'toggle_exam_active' active_exam.id %}" class="btn btn-outline-success btn-sm px-2.5 py-1">
-                    <i class="bi bi-eye-fill me-1"></i> Activate Exam
-                </a>
-            {% endif %}
+            <form method="post" action="{% url 'toggle_exam_active' active_exam.id %}" class="d-inline">
+                {% csrf_token %}
+                {% if active_exam.is_active %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm px-2.5 py-1" data-loading-text="Updating...">
+                        <i class="bi bi-eye-slash-fill me-1"></i> Make Inactive
+                    </button>
+                {% else %}
+                    <button type="submit" class="btn btn-outline-success btn-sm px-2.5 py-1" data-loading-text="Updating...">
+                        <i class="bi bi-eye-fill me-1"></i> Activate Exam
+                    </button>
+                {% endif %}
+            </form>
             <a href="{% url 'customize_exam_subjects' active_exam.id %}" class="btn btn-warning text-dark fw-bold btn-sm px-2.5 py-1">
                 <i class="bi bi-sliders me-1"></i> Subject Customization
             </a>
@@ -423,7 +426,7 @@
 
 {% block extra_js %}
 <!-- SortableJS CDN for Drag & Drop Reordering -->
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
 <script>
 const EXAM_FILTER_STORAGE_KEY = 'exam_detail_filter_{{ active_exam.id }}';
 let currentActiveStatus = 'ALL';
@@ -556,9 +559,11 @@ function handleFilterClick(status) {
     applyStatusFilter(status, true);
 }
 
+let _searchDebounceTimer = null;
 function handleSearchInput(value) {
     currentSearchQuery = value;
-    executeFilters();
+    clearTimeout(_searchDebounceTimer);
+    _searchDebounceTimer = setTimeout(executeFilters, 150);
 }
 
 function clearTeacherSearch() {
@@ -664,6 +669,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const orderedIds = rows.map(r => r.getAttribute('data-submission-id')).filter(Boolean);
 
                 if (orderedIds.length > 0) {
+                    showReorderToast('Saving subject sequence...');
                     fetch("{% url 'reorder_submissions' active_exam.id %}", {
                         method: 'POST',
                         headers: {
@@ -676,10 +682,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(data => {
                         if (data.status === 'success') {
                             showReorderToast('✓ Subject sequence saved for reports!');
+                        } else {
+                            showReorderToast('⚠️ Could not save subject sequence.');
                         }
                     })
                     .catch(err => {
                         console.error('Error saving subject order:', err);
+                        showReorderToast('⚠️ Network error saving subject sequence.');
                     });
                 }
             }

@@ -89,15 +89,18 @@
                                 <a href="{% url 'customize_exam_subjects' item.exam.id %}" class="btn btn-outline-secondary text-dark btn-sm font-semibold" title="Customize Subjects & Divisions">
                                     <i class="bi bi-sliders text-warning me-1"></i> Customize
                                 </a>
-                                {% if item.exam.is_active %}
-                                    <a href="{% url 'toggle_exam_active' item.exam.id %}" class="btn btn-outline-danger btn-sm font-semibold" title="Hide from Teachers">
-                                        <i class="bi bi-eye-slash-fill me-1"></i> Inactive
-                                    </a>
-                                {% else %}
-                                    <a href="{% url 'toggle_exam_active' item.exam.id %}" class="btn btn-outline-success btn-sm font-semibold" title="Enable for Teachers">
-                                        <i class="bi bi-eye-fill me-1"></i> Activate
-                                    </a>
-                                {% endif %}
+                                <form method="post" action="{% url 'toggle_exam_active' item.exam.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    {% if item.exam.is_active %}
+                                        <button type="submit" class="btn btn-outline-danger btn-sm font-semibold" title="Hide from Teachers" data-loading-text="Updating...">
+                                            <i class="bi bi-eye-slash-fill me-1"></i> Inactive
+                                        </button>
+                                    {% else %}
+                                        <button type="submit" class="btn btn-outline-success btn-sm font-semibold" title="Enable for Teachers" data-loading-text="Updating...">
+                                            <i class="bi bi-eye-fill me-1"></i> Activate
+                                        </button>
+                                    {% endif %}
+                                </form>
                                 <a href="{% url 'edit_exam' item.exam.id %}" class="btn btn-outline-secondary btn-sm" title="Edit Settings">
                                     <i class="bi bi-pencil-square"></i>
                                 </a>

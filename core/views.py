@@ -1,90 +1,143 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import login, logout, authenticate
-from django.contrib.auth.forms import AuthenticationForm
-from django.contrib.auth.decorators import login_required
+import json
+from collections import defaultdict
+
 from django.contrib import messages
+from django.contrib.auth import login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import AuthenticationForm
+from django.core.cache import cache
+from django.db import transaction
+from django.db.models import Count, Q
+from django.db.models.functions import Lower
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from .models import Exam, PortionSubmission, QuestionPatternItem
-from .forms import ExamForm, TeacherSubmissionForm, QuestionPatternFormSet
+from django.views.decorators.http import require_POST
+
+from .cache_utils import invalidate_on_commit, make_cache_key
+from .forms import (
+    DivisionForm,
+    ExamForm,
+    ExamTimetableForm,
+    MasterSubjectForm,
+    QuestionPatternFormSet,
+    TeacherSubmissionForm,
+    TimetableEntryFormSet,
+)
+from .models import (
+    Division,
+    Exam,
+    ExamTimetable,
+    MasterSubject,
+    PortionSubmission,
+    QuestionPatternItem,
+    TimetableEntry,
+)
 
 
 def principal_login_view(request):
     if request.user.is_authenticated:
         return redirect('principal_dashboard')
-    
+
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
-            username = form.cleaned_data.get('username')
-            password = form.cleaned_data.get('password')
-            user = authenticate(username=username, password=password)
+            user = form.get_user()
             if user is not None:
                 login(request, user)
                 messages.success(request, f"Welcome back, Principal {user.first_name or user.username}!")
                 return redirect('principal_dashboard')
-            else:
-                messages.error(request, "Invalid username or password.")
+            messages.error(request, "Invalid username or password.")
         else:
             messages.error(request, "Invalid login credentials.")
     else:
         form = AuthenticationForm()
-        
+
     return render(request, 'core/login.html', {'form': form})
 
+
+@require_POST
 def principal_logout_view(request):
     logout(request)
     messages.info(request, "Logged out successfully.")
     return redirect('login')
 
+
 @login_required
 def principal_dashboard(request):
-    exams = Exam.objects.all()
-    
-    # Calculate summary counts for each exam in the table
-    exam_list = []
-    for exam in exams:
-        subs = exam.submissions.all()
-        exam_list.append({
+    exams = list(
+        Exam.objects.annotate(
+            total=Count('submissions'),
+            pending=Count('submissions', filter=Q(submissions__status='PENDING')),
+            submitted=Count('submissions', filter=Q(submissions__status='SUBMITTED')),
+            approved=Count('submissions', filter=Q(submissions__status='APPROVED')),
+            revision=Count('submissions', filter=Q(submissions__status='REVISION')),
+        )
+    )
+
+    exam_list = [
+        {
             'exam': exam,
-            'total': subs.count(),
-            'pending': subs.filter(status='PENDING').count(),
-            'submitted': subs.filter(status='SUBMITTED').count(),
-            'approved': subs.filter(status='APPROVED').count(),
-            'revision': subs.filter(status='REVISION').count(),
-        })
+            'total': exam.total,
+            'pending': exam.pending,
+            'submitted': exam.submitted,
+            'approved': exam.approved,
+            'revision': exam.revision,
+        }
+        for exam in exams
+    ]
 
     context = {
         'exam_list': exam_list,
-        'total_exams': exams.count(),
+        'total_exams': len(exams),
     }
     return render(request, 'core/principal_dashboard.html', context)
+
 
 @login_required
 def exam_detail_dashboard(request, exam_id):
     exam = get_object_or_404(Exam, id=exam_id)
-    submissions = PortionSubmission.objects.filter(exam=exam).select_related('master_subject', 'division_ref').order_by('order', 'subject_name', 'created_at')
-    
+    submissions = list(
+        PortionSubmission.objects
+        .filter(exam=exam)
+        .select_related('division_ref')
+        .defer('syllabus_portion', 'instructions_for_students', 'principal_remarks')
+        .order_by('order', 'subject_name', 'created_at')
+    )
+
     stats = {
-        'total': submissions.count(),
-        'pending': submissions.filter(status='PENDING').count(),
-        'submitted': submissions.filter(status='SUBMITTED').count(),
-        'approved': submissions.filter(status='APPROVED').count(),
-        'revision': submissions.filter(status='REVISION').count(),
+        'total': len(submissions),
+        'pending': 0,
+        'submitted': 0,
+        'approved': 0,
+        'revision': 0,
     }
 
-    # Group submissions by class/grade
-    from collections import defaultdict
     grouped_dict = defaultdict(list)
     for sub in submissions:
         grouped_dict[sub.display_class_name].append(sub)
 
     submission_groups = []
     for class_name, subs in grouped_dict.items():
-        pending_cnt = sum(1 for s in subs if s.status == 'PENDING')
-        submitted_cnt = sum(1 for s in subs if s.status == 'SUBMITTED')
-        approved_cnt = sum(1 for s in subs if s.status == 'APPROVED')
-        revision_cnt = sum(1 for s in subs if s.status == 'REVISION')
-        
+        pending_cnt = 0
+        submitted_cnt = 0
+        approved_cnt = 0
+        revision_cnt = 0
+        for s in subs:
+            if s.status == 'PENDING':
+                pending_cnt += 1
+            elif s.status == 'SUBMITTED':
+                submitted_cnt += 1
+            elif s.status == 'APPROVED':
+                approved_cnt += 1
+            elif s.status == 'REVISION':
+                revision_cnt += 1
+
+        stats['pending'] += pending_cnt
+        stats['submitted'] += submitted_cnt
+        stats['approved'] += approved_cnt
+        stats['revision'] += revision_cnt
+
         submission_groups.append({
             'class_name': class_name,
             'submissions': subs,
@@ -104,7 +157,6 @@ def exam_detail_dashboard(request, exam_id):
     return render(request, 'core/exam_detail_dashboard.html', context)
 
 
-
 @login_required
 def create_exam(request):
     if request.method == 'POST':
@@ -116,6 +168,7 @@ def create_exam(request):
     else:
         form = ExamForm()
     return render(request, 'core/exam_form.html', {'form': form})
+
 
 @login_required
 def edit_exam(request, exam_id):
@@ -130,128 +183,163 @@ def edit_exam(request, exam_id):
         form = ExamForm(instance=exam)
     return render(request, 'core/exam_form.html', {'form': form, 'edit_instance': exam})
 
+
 @login_required
+@require_POST
 def toggle_exam_active(request, exam_id):
     exam = get_object_or_404(Exam, id=exam_id)
     exam.is_active = not exam.is_active
-    exam.save()
+    exam.save(update_fields=['is_active'])
     status_str = "Active" if exam.is_active else "Inactive"
     messages.success(request, f"Exam '{exam.title}' is now {status_str}.")
     return redirect('principal_dashboard')
 
+
 @login_required
 def review_submission(request, submission_id):
-    submission = get_object_or_404(PortionSubmission, id=submission_id)
-    
+    submission = get_object_or_404(
+        PortionSubmission.objects
+        .select_related('exam', 'division_ref')
+        .prefetch_related('pattern_items'),
+        id=submission_id,
+    )
+
     if request.method == 'POST':
         action = request.POST.get('action')
         remarks = request.POST.get('principal_remarks', '')
         submission.principal_remarks = remarks
-        
+
         if action == 'approve':
             submission.status = 'APPROVED'
             messages.success(request, f"Submission for {submission.subject_name} ({submission.class_name}) has been Approved!")
         elif action == 'request_revision':
             submission.status = 'REVISION'
             messages.warning(request, f"Revision requested for {submission.subject_name} ({submission.class_name}).")
-        submission.save()
-        return redirect('exam_detail_dashboard', exam_id=submission.exam.id)
+        submission.save(update_fields=['status', 'principal_remarks', 'updated_at'])
+        return redirect('exam_detail_dashboard', exam_id=submission.exam_id)
 
     return render(request, 'core/review_submission.html', {'submission': submission})
 
 
 @login_required
 def print_submission_view(request, submission_id):
-    submission = get_object_or_404(PortionSubmission, id=submission_id)
+    submission = get_object_or_404(
+        PortionSubmission.objects
+        .select_related('exam')
+        .prefetch_related('pattern_items'),
+        id=submission_id,
+    )
     return render(request, 'core/print_submission.html', {'submission': submission})
 
+
 @login_required
+@require_POST
 def delete_submission(request, submission_id):
     submission = get_object_or_404(PortionSubmission, id=submission_id)
-    exam_id = submission.exam.id
+    exam_id = submission.exam_id
     subject_name = submission.subject_name
     class_name = submission.class_name
 
-    # Clear teacher-submitted information and reset status back to PENDING
-    submission.syllabus_portion = ''
-    submission.instructions_for_students = ''
-    submission.status = 'PENDING'
-    submission.submitted_at = None
-    submission.teacher_name = ''
-    submission.principal_remarks = ''
-    submission.save()
-
-    # Clear associated question pattern items
-    submission.pattern_items.all().delete()
+    with transaction.atomic():
+        submission.syllabus_portion = ''
+        submission.instructions_for_students = ''
+        submission.status = 'PENDING'
+        submission.submitted_at = None
+        submission.teacher_name = ''
+        submission.principal_remarks = ''
+        submission.save(update_fields=[
+            'syllabus_portion',
+            'instructions_for_students',
+            'status',
+            'submitted_at',
+            'teacher_name',
+            'principal_remarks',
+            'updated_at',
+        ])
+        submission.pattern_items.all().delete()
+        invalidate_on_commit()
 
     messages.success(request, f"Submission content for {subject_name} ({class_name}) has been cleared and reset to Pending!")
     return redirect('exam_detail_dashboard', exam_id=exam_id)
 
+
 @login_required
 def compiled_exam_report(request, exam_id):
-    from .models import ExamTimetable
     exam = get_object_or_404(Exam, id=exam_id)
-    submissions = PortionSubmission.objects.filter(exam=exam).prefetch_related('pattern_items', 'division_ref').order_by('order', 'subject_name', 'created_at')
-    
-    # Group submissions by class/grade
-    from collections import defaultdict
+    submissions = list(
+        PortionSubmission.objects
+        .filter(exam=exam)
+        .select_related('division_ref')
+        .prefetch_related('pattern_items')
+        .order_by('order', 'subject_name', 'created_at')
+    )
+
+    # Pre-load all timetables & entries for this exam in 3 total queries (no loop queries)
+    timetables = list(
+        ExamTimetable.objects
+        .filter(exam=exam)
+        .prefetch_related('divisions', 'entries')
+    )
+    div_tt_map = {}
+    global_tt = None
+    for tt in timetables:
+        tt_divs = list(tt.divisions.all())
+        # TimetableEntry.Meta.ordering already orders by ['exam_date', 'order']; do not call .order_by() here
+        tt_obj = {
+            'name': tt.name,
+            'entries': list(tt.entries.all()),
+        }
+        if not tt_divs:
+            if global_tt is None:
+                global_tt = tt_obj
+        else:
+            for div in tt_divs:
+                if div.id not in div_tt_map:
+                    div_tt_map[div.id] = tt_obj
+
     grouped_classes = defaultdict(list)
     for sub in submissions:
         grouped_classes[sub.display_class_name].append(sub)
-        
+
     class_reports = []
     for class_name, subs in grouped_classes.items():
         first_sub = subs[0] if subs else None
-        div_ref = first_sub.division_ref if first_sub else None
-        
-        assigned_timetable = None
-        if div_ref:
-            # 1. Check if a timetable is explicitly assigned to this division
-            assigned_timetable = ExamTimetable.objects.filter(exam=exam, divisions=div_ref).prefetch_related('entries').first()
-            
-        if not assigned_timetable:
-            # 2. Check if there is a global timetable (with no specific divisions assigned)
-            assigned_timetable = ExamTimetable.objects.filter(exam=exam, divisions__isnull=True).prefetch_related('entries').first()
+        div_ref_id = first_sub.division_ref_id if first_sub else None
 
+        timetable_obj = div_tt_map.get(div_ref_id) if div_ref_id else None
+        if timetable_obj is None:
+            timetable_obj = global_tt
 
-        timetable_obj = None
-        if assigned_timetable:
-            timetable_entries = list(assigned_timetable.entries.all().order_by('exam_date', 'order'))
-            timetable_obj = {
-                'name': assigned_timetable.name,
-                'entries': timetable_entries
-            }
-        else:
-            fallback_items = []
-            for sub in subs:
-                if sub.exam_date:
-                    fallback_items.append({
-                        'exam_date': sub.exam_date,
-                        'subject_name': sub.subject_name
-                    })
+        if timetable_obj is None:
+            fallback_items = [
+                {
+                    'exam_date': sub.exam_date,
+                    'subject_name': sub.subject_name,
+                }
+                for sub in subs
+                if sub.exam_date
+            ]
             fallback_items.sort(key=lambda x: x['exam_date'])
             if fallback_items:
                 timetable_obj = {
                     'name': f"{exam.title} TIMETABLE-{exam.academic_year}",
-                    'entries': fallback_items
+                    'entries': fallback_items,
                 }
-        
+
         class_reports.append({
             'class_name': class_name,
             'submissions': subs,
-            'timetable': timetable_obj
+            'timetable': timetable_obj,
         })
 
     return render(request, 'core/compiled_report.html', {
         'exam': exam,
-        'class_reports': class_reports
+        'class_reports': class_reports,
     })
 
 
 @login_required
 def reorder_submissions(request, exam_id):
-    import json
-    from django.http import JsonResponse
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
 
@@ -262,24 +350,33 @@ def reorder_submissions(request, exam_id):
         if not isinstance(ordered_ids, list):
             return JsonResponse({'status': 'error', 'message': 'ordered_ids must be a list.'}, status=400)
 
-        for index, sub_id in enumerate(ordered_ids):
-            PortionSubmission.objects.filter(id=sub_id, exam=exam).update(order=index)
+        order_map = {str(sub_id): index for index, sub_id in enumerate(ordered_ids)}
+        if order_map:
+            with transaction.atomic():
+                subs = list(
+                    PortionSubmission.objects
+                    .filter(exam=exam, id__in=list(order_map.keys()))
+                    .only('id', 'order')
+                )
+                to_update = []
+                for sub in subs:
+                    new_order = order_map.get(str(sub.id))
+                    if new_order is not None and sub.order != new_order:
+                        sub.order = new_order
+                        to_update.append(sub)
+                if to_update:
+                    PortionSubmission.objects.bulk_update(to_update, ['order'])
+                    invalidate_on_commit()
 
         return JsonResponse({'status': 'success', 'message': 'Subject sequence updated successfully!'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 
-
-
 # --- MASTER SUBJECT & DIVISION MANAGEMENT VIEWS (ONE-TIME SETUP) ---
 
 @login_required
 def manage_subjects(request):
-    from .models import MasterSubject, PortionSubmission
-    from .forms import MasterSubjectForm
-    from django.db import models
-
     edit_subject_id = request.GET.get('edit')
     edit_instance = get_object_or_404(MasterSubject, id=edit_subject_id) if edit_subject_id else None
 
@@ -292,27 +389,32 @@ def manage_subjects(request):
     else:
         form = MasterSubjectForm(instance=edit_instance)
 
-    subjects = list(MasterSubject.objects.all())
+    subjects = list(MasterSubject.objects.annotate(direct_cnt=Count('submissions')))
+    unlinked_counts = {
+        row['lname']: row['cnt']
+        for row in PortionSubmission.objects
+        .filter(master_subject__isnull=True)
+        .annotate(lname=Lower('subject_name'))
+        .values('lname')
+        .annotate(cnt=Count('id'))
+    }
     for subj in subjects:
-        subj.linked_count = PortionSubmission.objects.filter(
-            models.Q(master_subject=subj) | models.Q(subject_name__iexact=subj.name)
-        ).count()
+        subj.linked_count = subj.direct_cnt + unlinked_counts.get(subj.name.lower(), 0)
 
     return render(request, 'core/manage_subjects.html', {
         'subjects': subjects,
         'form': form,
-        'edit_instance': edit_instance
+        'edit_instance': edit_instance,
     })
 
+
 @login_required
+@require_POST
 def delete_subject(request, subject_id):
-    from .models import MasterSubject, PortionSubmission
-    from django.db import models
     subject = get_object_or_404(MasterSubject, id=subject_id)
-    
-    # Check if any PortionSubmission records exist for this subject
+
     linked_count = PortionSubmission.objects.filter(
-        models.Q(master_subject=subject) | models.Q(subject_name__iexact=subject.name)
+        Q(master_subject=subject) | Q(subject_name__iexact=subject.name)
     ).count()
 
     if linked_count > 0:
@@ -327,12 +429,9 @@ def delete_subject(request, subject_id):
     messages.success(request, f"Subject '{name}' deleted successfully.")
     return redirect('manage_subjects')
 
+
 @login_required
 def manage_divisions(request):
-    from .models import Division, PortionSubmission
-    from .forms import DivisionForm
-    from django.db import models
-
     edit_div_id = request.GET.get('edit')
     edit_instance = get_object_or_404(Division, id=edit_div_id) if edit_div_id else None
 
@@ -345,27 +444,32 @@ def manage_divisions(request):
     else:
         form = DivisionForm(instance=edit_instance)
 
-    divisions = list(Division.objects.all())
+    divisions = list(Division.objects.annotate(direct_cnt=Count('submissions')))
+    unlinked_counts = {
+        row['lname']: row['cnt']
+        for row in PortionSubmission.objects
+        .filter(division_ref__isnull=True)
+        .annotate(lname=Lower('class_name'))
+        .values('lname')
+        .annotate(cnt=Count('id'))
+    }
     for div in divisions:
-        div.linked_count = PortionSubmission.objects.filter(
-            models.Q(division_ref=div) | models.Q(class_name__iexact=str(div))
-        ).count()
+        div.linked_count = div.direct_cnt + unlinked_counts.get(str(div).lower(), 0)
 
     return render(request, 'core/manage_divisions.html', {
         'divisions': divisions,
         'form': form,
-        'edit_instance': edit_instance
+        'edit_instance': edit_instance,
     })
 
+
 @login_required
+@require_POST
 def delete_division(request, division_id):
-    from .models import Division, PortionSubmission
-    from django.db import models
     div = get_object_or_404(Division, id=division_id)
-    
-    # Check if any PortionSubmission records exist for this division
+
     linked_count = PortionSubmission.objects.filter(
-        models.Q(division_ref=div) | models.Q(class_name__iexact=str(div))
+        Q(division_ref=div) | Q(class_name__iexact=str(div))
     ).count()
 
     if linked_count > 0:
@@ -381,100 +485,131 @@ def delete_division(request, division_id):
     return redirect('manage_divisions')
 
 
-
 # --- EXAM SUBJECT & DIVISION CUSTOMIZATION (BULK ALLOCATION) ---
 
 @login_required
 def customize_exam_subjects(request, exam_id):
-    from .models import MasterSubject, Division
     exam = get_object_or_404(Exam, id=exam_id)
-    subjects = MasterSubject.objects.all()
-    divisions = Division.objects.all()
+    subjects = list(MasterSubject.objects.all())
+    divisions = list(Division.objects.all())
 
-    # Pre-fetch existing allocations for this exam where foreign keys are present
-    existing_submissions = PortionSubmission.objects.filter(
-        exam=exam,
-        master_subject__isnull=False,
-        division_ref__isnull=False
-    )
-    
-    allocated_pairs = {
-        f"{sub.master_subject_id}_{sub.division_ref_id}": sub
-        for sub in existing_submissions
-    }
-
-    has_existing_allocations = (existing_submissions.count() > 0)
-
-    # Attach allocated_div_ids set to each subject object for fast native template checking
-    for subj in subjects:
-        subj.allocated_div_ids = set(
-            sub.division_ref_id
-            for sub in existing_submissions
-            if sub.master_subject_id == subj.id
-        )
-
-    # Other exams available to copy allocations from
-    other_exams = Exam.objects.exclude(id=exam.id).order_by('-created_at')
-    for oe in other_exams:
-        oe.alloc_count = PortionSubmission.objects.filter(
-            exam=oe,
+    existing_submissions = list(
+        PortionSubmission.objects
+        .filter(
+            exam=exam,
             master_subject__isnull=False,
-            division_ref__isnull=False
-        ).count()
+            division_ref__isnull=False,
+        )
+        .only('id', 'master_subject_id', 'division_ref_id', 'total_marks', 'duration_minutes')
+    )
 
+    allocated_pairs = {}
+    allocated_by_subj = defaultdict(set)
+    for sub in existing_submissions:
+        allocated_pairs[(sub.master_subject_id, sub.division_ref_id)] = sub
+        allocated_by_subj[sub.master_subject_id].add(sub.division_ref_id)
+
+    has_existing_allocations = len(existing_submissions) > 0
+
+    for subj in subjects:
+        subj.allocated_div_ids = allocated_by_subj.get(subj.id, set())
+
+    other_exams = list(
+        Exam.objects
+        .exclude(id=exam.id)
+        .annotate(
+            alloc_count=Count(
+                'submissions',
+                filter=Q(
+                    submissions__master_subject__isnull=False,
+                    submissions__division_ref__isnull=False,
+                ),
+            )
+        )
+        .order_by('-created_at')
+    )
 
     if request.method == 'POST':
-        total_marks = int(request.POST.get('total_marks', 80))
-        duration_minutes = int(request.POST.get('duration_minutes', 180))
-        
-        # Selected check boxes in format: "alloc_<subject_id>_<division_id>"
+        try:
+            total_marks = int(request.POST.get('total_marks', 80))
+        except (ValueError, TypeError):
+            total_marks = 80
+        try:
+            duration_minutes = int(request.POST.get('duration_minutes', 180))
+        except (ValueError, TypeError):
+            duration_minutes = 180
+
         selected_keys = set()
         for key in request.POST:
             if key.startswith('alloc_'):
                 parts = key.split('_')
                 if len(parts) == 3:
-                    subj_id, div_id = int(parts[1]), int(parts[2])
-                    selected_keys.add((subj_id, div_id))
+                    try:
+                        subj_id, div_id = int(parts[1]), int(parts[2])
+                        selected_keys.add((subj_id, div_id))
+                    except ValueError:
+                        continue
 
-        created_count = 0
+        subjects_by_id = {s.id: s for s in subjects}
+        divisions_by_id = {d.id: d for d in divisions}
+
+        to_create = []
+        to_update = []
         updated_count = 0
-        deleted_count = 0
 
-        # Create or Update selected allocations
         for subj_id, div_id in selected_keys:
-            subj = get_object_or_404(MasterSubject, id=subj_id)
-            div = get_object_or_404(Division, id=div_id)
-            
-            pair_key = f"{subj_id}_{div_id}"
+            subj = subjects_by_id.get(subj_id)
+            div = divisions_by_id.get(div_id)
+            if subj is None:
+                subj = get_object_or_404(MasterSubject, id=subj_id)
+            if div is None:
+                div = get_object_or_404(Division, id=div_id)
 
+            pair_key = (subj_id, div_id)
             if pair_key in allocated_pairs:
                 sub = allocated_pairs[pair_key]
-                sub.total_marks = total_marks
-                sub.duration_minutes = duration_minutes
-                sub.save()
                 updated_count += 1
+                if sub.total_marks != total_marks or sub.duration_minutes != duration_minutes:
+                    sub.total_marks = total_marks
+                    sub.duration_minutes = duration_minutes
+                    to_update.append(sub)
             else:
-                PortionSubmission.objects.create(
-                    exam=exam,
-                    master_subject=subj,
-                    division_ref=div,
-                    subject_name=subj.name,
-                    class_name=str(div),
-                    teacher_name="",
-                    total_marks=total_marks,
-                    duration_minutes=duration_minutes,
-                    status='PENDING'
+                to_create.append(
+                    PortionSubmission(
+                        exam=exam,
+                        master_subject=subj,
+                        division_ref=div,
+                        subject_name=subj.name,
+                        class_name=str(div),
+                        teacher_name="",
+                        total_marks=total_marks,
+                        duration_minutes=duration_minutes,
+                        status='PENDING',
+                    )
                 )
-                created_count += 1
 
-        # Remove allocations that were unchecked/disabled by the Principal
-        for pair_key, sub in list(allocated_pairs.items()):
-            subj_id, div_id = sub.master_subject_id, sub.division_ref_id
-            if (subj_id, div_id) not in selected_keys:
-                sub.delete()
-                deleted_count += 1
+        to_delete_ids = [
+            sub.id
+            for pair_key, sub in allocated_pairs.items()
+            if pair_key not in selected_keys
+        ]
 
-        messages.success(request, f"Customization saved for '{exam.title}'! Created {created_count} allocations, updated {updated_count}, removed {deleted_count} disabled allocations.")
+        with transaction.atomic():
+            if to_create:
+                PortionSubmission.objects.bulk_create(to_create)
+            if to_update:
+                PortionSubmission.objects.bulk_update(to_update, ['total_marks', 'duration_minutes'])
+            if to_delete_ids:
+                PortionSubmission.objects.filter(id__in=to_delete_ids).delete()
+            invalidate_on_commit()
+
+        created_count = len(to_create)
+        deleted_count = len(to_delete_ids)
+
+        messages.success(
+            request,
+            f"Customization saved for '{exam.title}'! Created {created_count} allocations, updated {updated_count}, removed {deleted_count} disabled allocations."
+        )
         return redirect('principal_dashboard')
 
     context = {
@@ -493,7 +628,6 @@ def copy_exam_allocations(request, exam_id):
     Copies subject-division allocations from another selected exam into this exam.
     Supports 'replace' (mirror source exam) or 'merge' (add new allocations without deleting existing).
     """
-    from .models import MasterSubject, Division
     if request.method != 'POST':
         return redirect('customize_exam_subjects', exam_id=exam_id)
 
@@ -506,53 +640,64 @@ def copy_exam_allocations(request, exam_id):
         return redirect('customize_exam_subjects', exam_id=exam_id)
 
     source_exam = get_object_or_404(Exam, id=source_exam_id)
-    source_allocs = PortionSubmission.objects.filter(
-        exam=source_exam,
-        master_subject__isnull=False,
-        division_ref__isnull=False
-    ).select_related('master_subject', 'division_ref')
+    source_allocs = list(
+        PortionSubmission.objects
+        .filter(
+            exam=source_exam,
+            master_subject__isnull=False,
+            division_ref__isnull=False,
+        )
+        .select_related('master_subject', 'division_ref')
+    )
 
-    if not source_allocs.exists():
+    if not source_allocs:
         messages.warning(request, f"Source exam '{source_exam.title}' has no allocated subjects to copy.")
         return redirect('customize_exam_subjects', exam_id=exam_id)
 
-    existing_allocs = PortionSubmission.objects.filter(exam=target_exam)
-
-    if copy_mode == 'replace':
-        existing_allocs.delete()
-        existing_pairs = set()
-    else:
-        existing_pairs = set(
-            (sub.master_subject_id, sub.division_ref_id)
-            for sub in existing_allocs
-            if sub.master_subject_id and sub.division_ref_id
-        )
-
-    created_count = 0
-    for s in source_allocs:
-        pair = (s.master_subject_id, s.division_ref_id)
-        if pair not in existing_pairs:
-            PortionSubmission.objects.create(
-                exam=target_exam,
-                master_subject=s.master_subject,
-                division_ref=s.division_ref,
-                subject_name=s.subject_name or (s.master_subject.name if s.master_subject else ""),
-                class_name=s.class_name or (str(s.division_ref) if s.division_ref else ""),
-                teacher_name="",
-                total_marks=s.total_marks or 80,
-                duration_minutes=s.duration_minutes or 180,
-                status='PENDING'
+    with transaction.atomic():
+        if copy_mode == 'replace':
+            PortionSubmission.objects.filter(exam=target_exam).delete()
+            existing_pairs = set()
+        else:
+            existing_pairs = set(
+                PortionSubmission.objects
+                .filter(
+                    exam=target_exam,
+                    master_subject__isnull=False,
+                    division_ref__isnull=False,
+                )
+                .values_list('master_subject_id', 'division_ref_id')
             )
-            existing_pairs.add(pair)
-            created_count += 1
 
+        to_create = []
+        for s in source_allocs:
+            pair = (s.master_subject_id, s.division_ref_id)
+            if pair not in existing_pairs:
+                to_create.append(
+                    PortionSubmission(
+                        exam=target_exam,
+                        master_subject=s.master_subject,
+                        division_ref=s.division_ref,
+                        subject_name=s.subject_name or (s.master_subject.name if s.master_subject else ""),
+                        class_name=s.class_name or (str(s.division_ref) if s.division_ref else ""),
+                        teacher_name="",
+                        total_marks=s.total_marks or 80,
+                        duration_minutes=s.duration_minutes or 180,
+                        status='PENDING',
+                    )
+                )
+                existing_pairs.add(pair)
+
+        if to_create:
+            PortionSubmission.objects.bulk_create(to_create)
+        invalidate_on_commit()
+
+    created_count = len(to_create)
     messages.success(
         request,
         f"Successfully copied {created_count} subject allocation(s) from '{source_exam.title}' to '{target_exam.title}'!"
     )
     return redirect('customize_exam_subjects', exam_id=exam_id)
-
-
 
 
 # --- TEACHER PUBLIC VIEWS (NO LOGIN REQUIRED) ---
@@ -562,54 +707,74 @@ def teacher_portal(request):
     Public portal home where teachers select Exam -> Division -> Subject to add or edit portion details.
     No login or individual links required!
     """
-    from .models import Division, MasterSubject
-    import json
-    from collections import defaultdict
-    
-    active_exams = Exam.objects.filter(is_active=True)
-    divisions = Division.objects.all()
-    subjects = MasterSubject.objects.all()
-
-    # Active allocated portion records
-    active_requests = PortionSubmission.objects.filter(exam__is_active=True).select_related('exam', 'master_subject', 'division_ref')
-
-    # Build JSON map of allocated subjects per exam & division: "examId_divId": [ {id: ..., name: ...}, ... ]
-    alloc_map = defaultdict(list)
-    for sub in active_requests:
-        if sub.master_subject_id and sub.division_ref_id:
-            key = f"{sub.exam_id}_{sub.division_ref_id}"
-            if not any(item['id'] == sub.master_subject_id for item in alloc_map[key]):
-                alloc_map[key].append({
-                    'id': sub.master_subject_id,
-                    'name': sub.subject_name,
-                    'code': (sub.master_subject.code if sub.master_subject else '') or ''
-                })
-
     if request.method == 'POST':
         exam_id = request.POST.get('exam_id')
         division_id = request.POST.get('division_id')
         subject_id = request.POST.get('subject_id')
 
         if exam_id and division_id and subject_id:
-            submission = PortionSubmission.objects.filter(
-                exam_id=exam_id,
-                division_ref_id=division_id,
-                master_subject_id=subject_id
-            ).first()
-
-            if submission:
-                return redirect('teacher_submit_portion', token=submission.id)
-            else:
-                messages.error(request, "The selected subject is not allocated for this examination and division.")
+            submission_id = (
+                PortionSubmission.objects
+                .filter(
+                    exam_id=exam_id,
+                    division_ref_id=division_id,
+                    master_subject_id=subject_id,
+                )
+                .values_list('id', flat=True)
+                .first()
+            )
+            if submission_id:
+                return redirect('teacher_submit_portion', token=submission_id)
+            messages.error(request, "The selected subject is not allocated for this examination and division.")
         else:
             messages.error(request, "Please select an Active Examination, Division, and Subject to continue.")
+
+    active_exams = list(Exam.objects.filter(is_active=True))
+    divisions = list(Division.objects.all())
+
+    active_requests = list(
+        PortionSubmission.objects
+        .filter(exam__is_active=True)
+        .select_related('exam', 'master_subject')
+        .only(
+            'id',
+            'exam_id',
+            'exam__title',
+            'master_subject_id',
+            'master_subject__code',
+            'division_ref_id',
+            'class_name',
+            'subject_name',
+            'status',
+            'total_marks',
+            'order',
+        )
+    )
+
+    alloc_cache_key = make_cache_key('web_teacher_portal_alloc_json')
+    alloc_map_json = cache.get(alloc_cache_key)
+    if alloc_map_json is None:
+        alloc_map = defaultdict(list)
+        seen_alloc = set()
+        for sub in active_requests:
+            if sub.master_subject_id and sub.division_ref_id:
+                key = f"{sub.exam_id}_{sub.division_ref_id}"
+                dedup_key = (key, sub.master_subject_id)
+                if dedup_key not in seen_alloc:
+                    seen_alloc.add(dedup_key)
+                    alloc_map[key].append({
+                        'id': sub.master_subject_id,
+                        'name': sub.subject_name,
+                        'code': (sub.master_subject.code if sub.master_subject else '') or '',
+                    })
+        alloc_map_json = json.dumps(alloc_map)
+        cache.set(alloc_cache_key, alloc_map_json, 300)
 
     context = {
         'active_exams': active_exams,
         'divisions': divisions,
-        'subjects': subjects,
         'active_requests': active_requests,
-        'alloc_map_json': json.dumps(alloc_map),
+        'alloc_map_json': alloc_map_json,
     }
     return render(request, 'core/teacher_portal.html', context)
 
@@ -619,13 +784,12 @@ def teacher_submit_portion(request, token):
     Public access route for teachers to submit or edit their syllabus portion and question pattern.
     No account creation or password required!
     """
-    submission = get_object_or_404(PortionSubmission, id=token)
+    submission = get_object_or_404(PortionSubmission.objects.select_related('exam'), id=token)
 
     if not submission.exam.is_active:
         messages.error(request, f"Examination '{submission.exam.title}' is currently inactive. Submissions for this exam are closed.")
         return redirect('teacher_portal')
 
-    # Read-only check: Once APPROVED, submission cannot be edited!
     is_readonly = (submission.status == 'APPROVED')
 
     if request.method == 'POST':
@@ -635,11 +799,10 @@ def teacher_submit_portion(request, token):
 
         form = TeacherSubmissionForm(request.POST, instance=submission)
         formset = QuestionPatternFormSet(request.POST, instance=submission)
-        
+
         form_valid = form.is_valid()
         formset_valid = formset.is_valid()
 
-        # Count fully filled rows and detect incomplete rows
         valid_row_count = 0
         has_incomplete_row = False
 
@@ -649,7 +812,7 @@ def teacher_submit_portion(request, token):
                     q_type = str(pattern_form.cleaned_data.get('question_type') or '').strip()
                     num_q = pattern_form.cleaned_data.get('number_of_questions')
                     marks_p_q = pattern_form.cleaned_data.get('marks_per_question')
-                    
+
                     if q_type and num_q and marks_p_q:
                         valid_row_count += 1
                     elif q_type or num_q or marks_p_q:
@@ -663,29 +826,9 @@ def teacher_submit_portion(request, token):
             messages.error(request, "Validation Error: At least one complete Question Paper Blueprint row is required.")
         elif formset_valid:
             sub = form.save(commit=False)
-            
-            # Calculate sum of section marks for non-deleted rows
+
             sum_section_marks = 0.0
-            for pattern_form in formset.forms:
-                if pattern_form.cleaned_data and not pattern_form.cleaned_data.get('DELETE', False):
-                    q_type = str(pattern_form.cleaned_data.get('question_type') or '').strip()
-                    if q_type:
-                        num_q = pattern_form.cleaned_data.get('number_of_questions', 0) or 0
-                        marks_p_q = pattern_form.cleaned_data.get('marks_per_question', 0.0) or 0.0
-                        sum_section_marks += (num_q * marks_p_q)
-
-            # Auto-update total_marks to match exact section breakdown sum
-            if valid_row_count > 0 and sum_section_marks > 0:
-                sub.total_marks = int(round(sum_section_marks))
-
-            sub.status = 'SUBMITTED'
-            sub.submitted_at = timezone.now()
-            sub.save()
-
-            # Clean up old pattern items for this submission to prevent row accumulation
-            sub.pattern_items.all().delete()
-
-            saved_items = []
+            valid_pattern_rows = []
             for pattern_form in formset.forms:
                 if pattern_form.cleaned_data and not pattern_form.cleaned_data.get('DELETE', False):
                     q_type = str(pattern_form.cleaned_data.get('question_type') or '').strip()
@@ -694,51 +837,105 @@ def teacher_submit_portion(request, token):
                     sec_name = str(pattern_form.cleaned_data.get('section_name') or '').strip()
                     c_info = str(pattern_form.cleaned_data.get('choice_info') or '').strip()
 
+                    if q_type:
+                        sum_section_marks += (num_q * marks_p_q)
                     if q_type and num_q > 0 and marks_p_q > 0:
-                        item = QuestionPatternItem.objects.create(
-                            submission=sub,
-                            question_type=q_type,
-                            number_of_questions=num_q,
-                            marks_per_question=marks_p_q,
-                            section_name=sec_name,
-                            choice_info=c_info
-                        )
-                        saved_items.append(item)
+                        valid_pattern_rows.append({
+                            'question_type': q_type,
+                            'number_of_questions': num_q,
+                            'marks_per_question': marks_p_q,
+                            'section_name': sec_name,
+                            'choice_info': c_info,
+                        })
 
-            # Process copying to other selected divisions if requested by teacher (Filter out empty strings & enforce max 2 divisions)
+            if valid_row_count > 0 and sum_section_marks > 0:
+                sub.total_marks = int(round(sum_section_marks))
+
+            now = timezone.now()
+            sub.status = 'SUBMITTED'
+            sub.submitted_at = now
+
             raw_copy_target_ids = request.POST.getlist('copy_to_divisions')
             copy_target_ids = [cid.strip() for cid in raw_copy_target_ids if cid and cid.strip()][:2]
-            copied_count = 0
-            if copy_target_ids:
-                target_subs = PortionSubmission.objects.filter(
-                    id__in=copy_target_ids,
-                    exam=submission.exam,
-                    subject_name=submission.subject_name
-                ).exclude(status='APPROVED')
 
-                for target_sub in target_subs:
-                    target_sub.teacher_name = sub.teacher_name
-                    target_sub.total_marks = sub.total_marks
-                    target_sub.duration_minutes = sub.duration_minutes
-                    target_sub.syllabus_portion = sub.syllabus_portion
-                    target_sub.instructions_for_students = sub.instructions_for_students
-                    target_sub.status = 'SUBMITTED'
-                    target_sub.submitted_at = timezone.now()
-                    target_sub.save()
+            with transaction.atomic():
+                sub.save(update_fields=[
+                    'teacher_name',
+                    'syllabus_portion',
+                    'instructions_for_students',
+                    'total_marks',
+                    'duration_minutes',
+                    'status',
+                    'submitted_at',
+                    'updated_at',
+                ])
 
-                    # Clone question pattern items
-                    target_sub.pattern_items.all().delete()
-                    for item in saved_items:
-                        QuestionPatternItem.objects.create(
-                            submission=target_sub,
-                            question_type=item.question_type,
-                            number_of_questions=item.number_of_questions,
-                            marks_per_question=item.marks_per_question,
-                            section_name=item.section_name,
-                            choice_info=item.choice_info
-                        )
-                    copied_count += 1
+                target_subs = []
+                if copy_target_ids:
+                    target_subs = list(
+                        PortionSubmission.objects.filter(
+                            id__in=copy_target_ids,
+                            exam_id=submission.exam_id,
+                            subject_name=submission.subject_name,
+                        ).exclude(status='APPROVED')
+                    )
 
+                all_target_ids = [sub.id] + [t.id for t in target_subs]
+                QuestionPatternItem.objects.filter(submission_id__in=all_target_ids).delete()
+
+                pattern_objs = [
+                    QuestionPatternItem(
+                        submission=sub,
+                        question_type=row['question_type'],
+                        number_of_questions=row['number_of_questions'],
+                        marks_per_question=row['marks_per_question'],
+                        section_name=row['section_name'],
+                        choice_info=row['choice_info'],
+                    )
+                    for row in valid_pattern_rows
+                ]
+
+                if target_subs:
+                    for target_sub in target_subs:
+                        target_sub.teacher_name = sub.teacher_name
+                        target_sub.total_marks = sub.total_marks
+                        target_sub.duration_minutes = sub.duration_minutes
+                        target_sub.syllabus_portion = sub.syllabus_portion
+                        target_sub.instructions_for_students = sub.instructions_for_students
+                        target_sub.status = 'SUBMITTED'
+                        target_sub.submitted_at = now
+                        target_sub.updated_at = now
+
+                        for row in valid_pattern_rows:
+                            pattern_objs.append(
+                                QuestionPatternItem(
+                                    submission=target_sub,
+                                    question_type=row['question_type'],
+                                    number_of_questions=row['number_of_questions'],
+                                    marks_per_question=row['marks_per_question'],
+                                    section_name=row['section_name'],
+                                    choice_info=row['choice_info'],
+                                )
+                            )
+
+                    PortionSubmission.objects.bulk_update(
+                        target_subs,
+                        [
+                            'teacher_name',
+                            'total_marks',
+                            'duration_minutes',
+                            'syllabus_portion',
+                            'instructions_for_students',
+                            'status',
+                            'submitted_at',
+                            'updated_at',
+                        ],
+                    )
+
+                QuestionPatternItem.objects.bulk_create(pattern_objs)
+                invalidate_on_commit()
+
+            copied_count = len(target_subs)
             if copied_count > 0:
                 messages.success(request, f"Thank you! Syllabus Portion & Question Pattern saved & submitted for {sub.class_name} AND copied to {copied_count} other division(s) successfully!")
             else:
@@ -747,16 +944,17 @@ def teacher_submit_portion(request, token):
             return redirect('teacher_submission_success', token=submission.id)
         else:
             messages.error(request, "Please fix the validation errors in the form below.")
-
     else:
         form = TeacherSubmissionForm(instance=submission)
         formset = QuestionPatternFormSet(instance=submission)
 
-    # Query other divisions for the same subject and exam (excluding approved)
-    other_division_submissions = PortionSubmission.objects.filter(
-        exam=submission.exam,
-        subject_name=submission.subject_name
-    ).exclude(id=submission.id).exclude(status='APPROVED').select_related('division_ref')
+    other_division_submissions = (
+        PortionSubmission.objects
+        .filter(exam_id=submission.exam_id, subject_name=submission.subject_name)
+        .exclude(id=submission.id)
+        .exclude(status='APPROVED')
+        .only('id', 'class_name', 'status')
+    )
 
     context = {
         'submission': submission,
@@ -768,11 +966,8 @@ def teacher_submit_portion(request, token):
     return render(request, 'core/teacher_submit_form.html', context)
 
 
-
-
-
 def teacher_submission_success(request, token):
-    submission = get_object_or_404(PortionSubmission, id=token)
+    submission = get_object_or_404(PortionSubmission.objects.select_related('exam'), id=token)
     return render(request, 'core/teacher_success.html', {'submission': submission})
 
 
@@ -780,39 +975,43 @@ def teacher_submission_success(request, token):
 
 @login_required
 def manage_timetables(request):
-    from .models import ExamTimetable, Exam
-    active_exams = Exam.objects.filter(is_active=True).prefetch_related('timetables__divisions', 'timetables__entries')
-    all_timetables = ExamTimetable.objects.all().select_related('exam').prefetch_related('divisions', 'entries')
+    active_exams = (
+        Exam.objects
+        .filter(is_active=True)
+        .prefetch_related('timetables__divisions', 'timetables__entries')
+    )
 
     return render(request, 'core/manage_timetables.html', {
         'active_exams': active_exams,
-        'all_timetables': all_timetables
     })
+
 
 @login_required
 def create_timetable(request):
-    from .forms import ExamTimetableForm, TimetableEntryFormSet
-    from .models import ExamTimetable, TimetableEntry
-
     if request.method == 'POST':
         form = ExamTimetableForm(request.POST)
         formset = TimetableEntryFormSet(request.POST)
-        
+
         form_valid = form.is_valid()
         formset_valid = formset.is_valid()
 
         if form_valid and formset_valid:
-            timetable = form.save()
-            
-            for entry_form in formset.forms:
-                if entry_form.cleaned_data and not entry_form.cleaned_data.get('DELETE', False):
-                    e_date = entry_form.cleaned_data.get('exam_date')
-                    s_name = str(entry_form.cleaned_data.get('subject_name') or '').strip()
-                    if e_date and s_name:
-                        entry = entry_form.save(commit=False)
-                        entry.timetable = timetable
-                        entry.save()
-                        
+            with transaction.atomic():
+                timetable = form.save()
+                entries_to_create = []
+                for entry_form in formset.forms:
+                    if entry_form.cleaned_data and not entry_form.cleaned_data.get('DELETE', False):
+                        e_date = entry_form.cleaned_data.get('exam_date')
+                        s_name = str(entry_form.cleaned_data.get('subject_name') or '').strip()
+                        if e_date and s_name:
+                            entry = entry_form.save(commit=False)
+                            entry.timetable = timetable
+                            entry.subject_name = s_name
+                            entries_to_create.append(entry)
+                if entries_to_create:
+                    TimetableEntry.objects.bulk_create(entries_to_create)
+                invalidate_on_commit()
+
             messages.success(request, f"Exam Timetable '{timetable.name}' created successfully!")
             return redirect('manage_timetables')
         else:
@@ -829,13 +1028,12 @@ def create_timetable(request):
     return render(request, 'core/timetable_form.html', {
         'form': form,
         'formset': formset,
-        'is_edit': False
+        'is_edit': False,
     })
+
 
 @login_required
 def edit_timetable(request, timetable_id):
-    from .forms import ExamTimetableForm, TimetableEntryFormSet
-    from .models import ExamTimetable
     timetable = get_object_or_404(ExamTimetable, id=timetable_id)
 
     if request.method == 'POST':
@@ -846,18 +1044,22 @@ def edit_timetable(request, timetable_id):
         formset_valid = formset.is_valid()
 
         if form_valid and formset_valid:
-            tt = form.save()
-            
-            # Clean up old entries and re-save valid entries
-            tt.entries.all().delete()
-            for entry_form in formset.forms:
-                if entry_form.cleaned_data and not entry_form.cleaned_data.get('DELETE', False):
-                    e_date = entry_form.cleaned_data.get('exam_date')
-                    s_name = str(entry_form.cleaned_data.get('subject_name') or '').strip()
-                    if e_date and s_name:
-                        entry = entry_form.save(commit=False)
-                        entry.timetable = tt
-                        entry.save()
+            with transaction.atomic():
+                tt = form.save()
+                tt.entries.all().delete()
+                entries_to_create = []
+                for entry_form in formset.forms:
+                    if entry_form.cleaned_data and not entry_form.cleaned_data.get('DELETE', False):
+                        e_date = entry_form.cleaned_data.get('exam_date')
+                        s_name = str(entry_form.cleaned_data.get('subject_name') or '').strip()
+                        if e_date and s_name:
+                            entry = entry_form.save(commit=False)
+                            entry.timetable = tt
+                            entry.subject_name = s_name
+                            entries_to_create.append(entry)
+                if entries_to_create:
+                    TimetableEntry.objects.bulk_create(entries_to_create)
+                invalidate_on_commit()
 
             messages.success(request, f"Exam Timetable '{tt.name}' updated successfully!")
             return redirect('manage_timetables')
@@ -874,17 +1076,15 @@ def edit_timetable(request, timetable_id):
         'form': form,
         'formset': formset,
         'timetable': timetable,
-        'is_edit': True
+        'is_edit': True,
     })
 
 
 @login_required
+@require_POST
 def delete_timetable(request, timetable_id):
-    from .models import ExamTimetable
     timetable = get_object_or_404(ExamTimetable, id=timetable_id)
     name = timetable.name
     timetable.delete()
     messages.success(request, f"Timetable '{name}' deleted successfully!")
     return redirect('manage_timetables')
-
-

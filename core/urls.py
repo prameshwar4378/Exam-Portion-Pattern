@@ -42,6 +42,7 @@ urlpatterns = [
     path('api/teacher/find-submission/', api_views.teacher_find_submission_api, name='api_teacher_find_submission'),
     path('api/teacher/submission/<uuid:token>/', api_views.teacher_submission_detail_api, name='api_teacher_submission_detail'),
     path('api/teacher/submission/<uuid:token>/submit/', api_views.teacher_submit_portion_api, name='api_teacher_submit_portion'),
+    path('api/teacher/submissions/status/', api_views.teacher_submissions_status_api, name='api_teacher_submissions_status'),
     path('api/teacher/timetables/', api_views.teacher_timetables_api, name='api_teacher_timetables'),
     path('api/teacher/reminder-data/', api_views.teacher_reminder_data_api, name='api_teacher_reminder_data'),
 ]

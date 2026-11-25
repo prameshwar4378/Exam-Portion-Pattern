@@ -2,6 +2,9 @@
 
 {% block title %}Principal Login - Exam Portion Pattern{% endblock %}
 
+{% block body_class %}{% endblock %}
+{% block navbar %}{% endblock %}
+
 {% block content %}
 <div class="container">
     <div class="card glass-card login-card p-4 p-md-5 my-5">
@@ -31,7 +34,7 @@
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary-custom w-100 py-2.5 fs-6 shadow-sm">
+            <button type="submit" class="btn btn-primary-custom w-100 py-2.5 fs-6 shadow-sm" data-loading-text="Signing In...">
                 <i class="bi bi-box-arrow-in-right me-2"></i> Log In as Principal
             </button>
         </form>

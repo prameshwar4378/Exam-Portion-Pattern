@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-
 :root {
     --primary-color: #4f46e5;
     --primary-hover: #4338ca;
@@ -218,21 +216,6 @@ h1, h2, h3, h4, h5, h6, .brand-font {
     background-color: #f1f5f9;
     font-size: 0.85rem;
     font-family: monospace;
-}
-
-/* Printable syllabus styling */
-@media print {
-    .no-print {
-        display: none !important;
-    }
-    body {
-        background-color: white !important;
-        color: black !important;
-    }
-    .print-card {
-        border: 1px solid #ccc !important;
-        box-shadow: none !important;
-    }
 }
 
 /* Modern Professional Allocation Cards (Pills) */
@@ -624,6 +607,11 @@ body.has-sidebar.sidebar-expanded .alert-container {
 @media print {
     .no-print {
         display: none !important;
+    }
+
+    .print-card {
+        border: 1px solid #ccc !important;
+        box-shadow: none !important;
     }
 
     body,

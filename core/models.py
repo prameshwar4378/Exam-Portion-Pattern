@@ -29,18 +29,19 @@ class Division(models.Model):
         is_new = self.pk is None
         old_name = None
         if not is_new:
-            old_obj = Division.objects.filter(pk=self.pk).first()
-            if old_obj:
-                old_name = str(old_obj)
+            old_vals = Division.objects.filter(pk=self.pk).values_list('standard', 'division_name').first()
+            if old_vals:
+                old_name = f"{old_vals[0]} - {old_vals[1]}"
 
         super().save(*args, **kwargs)
 
-        new_name = str(self)
-        # Instantly update all linked PortionSubmissions when a Division is created or edited
-        from core.models import PortionSubmission
-        PortionSubmission.objects.filter(division_ref=self).update(class_name=new_name)
-        if old_name and old_name != new_name:
-            PortionSubmission.objects.filter(class_name=old_name).update(class_name=new_name, division_ref=self)
+        if not is_new:
+            new_name = str(self)
+            if old_name != new_name:
+                # Instantly update all linked PortionSubmissions when a Division name changes
+                PortionSubmission.objects.filter(division_ref=self).update(class_name=new_name)
+                if old_name:
+                    PortionSubmission.objects.filter(class_name=old_name).update(class_name=new_name, division_ref=self)
 
 
 class Exam(models.Model):
@@ -50,11 +51,14 @@ class Exam(models.Model):
     header_subtitle = models.CharField(max_length=200, default="(Syllabus Paper & Time table)", help_text="Subtitle e.g. (Syllabus Paper & Time table)")
 
     note_text = models.CharField(max_length=300, default="NOTE: Kindly pay your wards fees before exam and collect the exam pass from the office.", help_text="Bottom note")
-    created_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_active', '-created_at'], name='idx_exam_active_created'),
+        ]
 
     def __str__(self):
         return f"{self.title} ({self.academic_year})"
@@ -73,11 +77,11 @@ class PortionSubmission(models.Model):
     master_subject = models.ForeignKey(MasterSubject, on_delete=models.SET_NULL, null=True, blank=True, related_name='submissions')
     division_ref = models.ForeignKey(Division, on_delete=models.SET_NULL, null=True, blank=True, related_name='submissions')
     
-    class_name = models.CharField(max_length=100, help_text="e.g. Grade VIII(MM) or Class 10-A")
-    subject_name = models.CharField(max_length=100, help_text="e.g. Mathematics, Physics")
+    class_name = models.CharField(max_length=100, db_index=True, help_text="e.g. Grade VIII(MM) or Class 10-A")
+    subject_name = models.CharField(max_length=100, db_index=True, help_text="e.g. Mathematics, Physics")
     teacher_name = models.CharField(max_length=150, help_text="Teacher's full name")
     teacher_email = models.EmailField(blank=True, null=True, help_text="Optional teacher contact email")
-    exam_date = models.DateField(blank=True, null=True, help_text="Date of exam e.g. 2026-07-06")
+    exam_date = models.DateField(blank=True, null=True, db_index=True, help_text="Date of exam e.g. 2026-07-06")
 
     
     # Syllabus Portion details
@@ -86,10 +90,10 @@ class PortionSubmission(models.Model):
     total_marks = models.PositiveIntegerField(default=80)
     duration_minutes = models.PositiveIntegerField(default=180, help_text="Exam duration in minutes")
     
-    order = models.PositiveIntegerField(default=0, help_text="Sequence order of subject for display and reports")
+    order = models.PositiveIntegerField(default=0, db_index=True, help_text="Sequence order of subject for display and reports")
 
     # Submission Metadata
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING', db_index=True)
     principal_remarks = models.TextField(blank=True, help_text="Remarks from Principal/Admin")
     submitted_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -97,15 +101,22 @@ class PortionSubmission(models.Model):
 
     class Meta:
         ordering = ['order', 'class_name', 'subject_name']
+        indexes = [
+            models.Index(fields=['exam', 'status'], name='idx_sub_exam_status'),
+            models.Index(fields=['exam', 'division_ref', 'master_subject'], name='idx_sub_exam_div_subj'),
+            models.Index(fields=['exam', 'order', 'subject_name'], name='idx_sub_exam_order_subj'),
+            models.Index(fields=['exam', 'subject_name', 'status'], name='idx_sub_exam_subj_status'),
+        ]
 
     @property
     def display_class_name(self):
-        if self.division_ref:
+        if self.division_ref_id:
             return str(self.division_ref)
         return self.class_name
 
     def save(self, *args, **kwargs):
-        if self.division_ref:
+        update_fields = kwargs.get('update_fields')
+        if self.division_ref_id and (update_fields is None or 'class_name' in update_fields):
             self.class_name = str(self.division_ref)
         super().save(*args, **kwargs)
 
@@ -136,7 +147,7 @@ class ExamTimetable(models.Model):
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='timetables')
     name = models.CharField(max_length=200, help_text="e.g. PA-1 EXAM TIMETABLE-2026-26 or Primary Section Timetable")
     divisions = models.ManyToManyField(Division, related_name='timetables', blank=True, help_text="Divisions configured for this timetable")
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -148,12 +159,15 @@ class ExamTimetable(models.Model):
 
 class TimetableEntry(models.Model):
     timetable = models.ForeignKey(ExamTimetable, on_delete=models.CASCADE, related_name='entries')
-    exam_date = models.DateField(blank=True, null=True, help_text="Exam Date e.g. 2026-07-06")
+    exam_date = models.DateField(blank=True, null=True, db_index=True, help_text="Exam Date e.g. 2026-07-06")
     subject_name = models.CharField(max_length=150, blank=True, help_text="Subject Name e.g. English, Science, Hindi")
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ['exam_date', 'order']
+        indexes = [
+            models.Index(fields=['timetable', 'exam_date', 'order'], name='idx_ttentry_tt_date_order'),
+        ]
 
     def __str__(self):
         return f"{self.exam_date}: {self.subject_name}"

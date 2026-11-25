@@ -304,7 +304,7 @@
             <!-- School Header with Logo on Top Left -->
             <div class="d-flex align-items-center justify-content-between mb-2">
                 <div style="width: 80px;" class="text-start">
-                    <img src="{% static 'img/logo.jpg' %}" alt="School Logo" style="max-width: 75px; max-height: 75px; object-fit: contain;">
+                    <img src="{% static 'images/school_logo.png' %}" alt="School Logo" width="75" height="75" style="max-width: 75px; max-height: 75px; object-fit: contain;">
                 </div>
                 <div class="text-center official-header flex-grow-1 px-2">
                     <h3>{{ exam.school_name }}</h3>
@@ -442,7 +442,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 function updateDocumentTitle() {
     const filterSelect = document.getElementById('divisionFilterSelect');

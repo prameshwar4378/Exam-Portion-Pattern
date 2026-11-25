@@ -2,6 +2,7 @@
 
 {% block title %}Submit Syllabus - {{ submission.class_name }} {{ submission.subject_name }}{% endblock %}
 
+{% block body_class %}{% endblock %}
 {% block navbar %}{% endblock %}
 
 {% block extra_css %}
@@ -280,7 +281,7 @@
         <!-- Submit Button Card -->
         {% if not is_readonly %}
         <div class="card glass-card p-3 p-md-4 border-primary text-center text-sm-end mb-4">
-            <button type="submit" class="btn btn-teacher-portal btn-lg w-100 w-sm-auto px-4 px-md-5 py-3 fw-bold rounded-pill">
+            <button type="submit" class="btn btn-teacher-portal btn-lg w-100 w-sm-auto px-4 px-md-5 py-3 fw-bold rounded-pill" data-loading-text="Submitting...">
                 <i class="bi bi-send-check-fill me-2"></i> Submit Syllabus & Question Pattern
             </button>
         </div>
@@ -292,10 +293,6 @@
             </div>
         </div>
         {% endif %}
-    </form>
-</div>
-
-
     </form>
 </div>
 {% endblock %}
@@ -370,8 +367,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Attach live listeners for mark calculations & question type inputs
-    document.addEventListener('input', function(e) {
+    // Attach live listeners for mark calculations & question type inputs scoped to portionForm
+    const portionFormEl = document.getElementById('portionForm') || document;
+    portionFormEl.addEventListener('input', function(e) {
         if (e.target.name && (e.target.name.endsWith('-question_type') || e.target.name.endsWith('-number_of_questions') || e.target.name.endsWith('-marks_per_question') || e.target.id === 'id_total_marks')) {
             calculateTotals();
         }

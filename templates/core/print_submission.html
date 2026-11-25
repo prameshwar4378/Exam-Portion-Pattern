@@ -92,6 +92,8 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {% for item in submission.pattern_items.all %}
+                    <tr>
                         <td class="fw-bold">{{ item.section_name }}</td>
                         <td>{{ item.question_type }}</td>
 

@@ -58,9 +58,12 @@
                             <a href="{% url 'edit_timetable' tt.id %}" class="btn btn-outline-primary btn-sm rounded-circle p-1.5 px-2" title="Edit Timetable">
                                 <i class="bi bi-pencil-fill"></i>
                             </a>
-                            <a href="{% url 'delete_timetable' tt.id %}" class="btn btn-outline-danger btn-sm rounded-circle p-1.5 px-2" onclick="return confirm('Are you sure you want to delete this timetable: {{ tt.name }}?');" title="Delete Timetable">
-                                <i class="bi bi-trash-fill"></i>
-                            </a>
+                            <form method="post" action="{% url 'delete_timetable' tt.id %}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this timetable: {{ tt.name|escapejs }}?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle p-1.5 px-2" title="Delete Timetable" data-loading-text="">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </form>
                         </div>
                     </div>
 
