@@ -413,6 +413,15 @@ def customize_exam_subjects(request, exam_id):
             if sub.master_subject_id == subj.id
         )
 
+    # Other exams available to copy allocations from
+    other_exams = Exam.objects.exclude(id=exam.id).order_by('-created_at')
+    for oe in other_exams:
+        oe.alloc_count = PortionSubmission.objects.filter(
+            exam=oe,
+            master_subject__isnull=False,
+            division_ref__isnull=False
+        ).count()
+
 
     if request.method == 'POST':
         total_marks = int(request.POST.get('total_marks', 80))
@@ -451,7 +460,7 @@ def customize_exam_subjects(request, exam_id):
                     division_ref=div,
                     subject_name=subj.name,
                     class_name=str(div),
-                    teacher_name="Teacher",
+                    teacher_name="",
                     total_marks=total_marks,
                     duration_minutes=duration_minutes,
                     status='PENDING'
@@ -473,8 +482,75 @@ def customize_exam_subjects(request, exam_id):
         'subjects': subjects,
         'divisions': divisions,
         'has_existing_allocations': has_existing_allocations,
+        'other_exams': other_exams,
     }
     return render(request, 'core/customize_exam_subjects.html', context)
+
+
+@login_required
+def copy_exam_allocations(request, exam_id):
+    """
+    Copies subject-division allocations from another selected exam into this exam.
+    Supports 'replace' (mirror source exam) or 'merge' (add new allocations without deleting existing).
+    """
+    from .models import MasterSubject, Division
+    if request.method != 'POST':
+        return redirect('customize_exam_subjects', exam_id=exam_id)
+
+    target_exam = get_object_or_404(Exam, id=exam_id)
+    source_exam_id = request.POST.get('source_exam_id')
+    copy_mode = request.POST.get('copy_mode', 'replace')
+
+    if not source_exam_id:
+        messages.error(request, "Please select an exam to copy allocations from.")
+        return redirect('customize_exam_subjects', exam_id=exam_id)
+
+    source_exam = get_object_or_404(Exam, id=source_exam_id)
+    source_allocs = PortionSubmission.objects.filter(
+        exam=source_exam,
+        master_subject__isnull=False,
+        division_ref__isnull=False
+    ).select_related('master_subject', 'division_ref')
+
+    if not source_allocs.exists():
+        messages.warning(request, f"Source exam '{source_exam.title}' has no allocated subjects to copy.")
+        return redirect('customize_exam_subjects', exam_id=exam_id)
+
+    existing_allocs = PortionSubmission.objects.filter(exam=target_exam)
+
+    if copy_mode == 'replace':
+        existing_allocs.delete()
+        existing_pairs = set()
+    else:
+        existing_pairs = set(
+            (sub.master_subject_id, sub.division_ref_id)
+            for sub in existing_allocs
+            if sub.master_subject_id and sub.division_ref_id
+        )
+
+    created_count = 0
+    for s in source_allocs:
+        pair = (s.master_subject_id, s.division_ref_id)
+        if pair not in existing_pairs:
+            PortionSubmission.objects.create(
+                exam=target_exam,
+                master_subject=s.master_subject,
+                division_ref=s.division_ref,
+                subject_name=s.subject_name or (s.master_subject.name if s.master_subject else ""),
+                class_name=s.class_name or (str(s.division_ref) if s.division_ref else ""),
+                teacher_name="",
+                total_marks=s.total_marks or 80,
+                duration_minutes=s.duration_minutes or 180,
+                status='PENDING'
+            )
+            existing_pairs.add(pair)
+            created_count += 1
+
+    messages.success(
+        request,
+        f"Successfully copied {created_count} subject allocation(s) from '{source_exam.title}' to '{target_exam.title}'!"
+    )
+    return redirect('customize_exam_subjects', exam_id=exam_id)
 
 
 

@@ -14,7 +14,10 @@
             <p class="text-muted mb-0">Select subjects and check divisions taking this exam for <strong>{{ exam.title }}</strong></p>
         </div>
 
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#copyAllocationsModal">
+                <i class="bi bi-copy me-1"></i> Copy from Another Exam
+            </button>
             <a href="{% url 'manage_subjects' %}" class="btn btn-outline-dark btn-sm">
                 <i class="bi bi-gear me-1"></i> Manage Master Subjects
             </a>
@@ -228,6 +231,91 @@
         </div>
         {% endif %}
     </form>
+
+    <!-- Copy Allocations Modal -->
+    <div class="modal fade" id="copyAllocationsModal" tabindex="-1" aria-labelledby="copyAllocationsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+                <div class="modal-header bg-primary text-white py-3">
+                    <h5 class="modal-title fw-bold" id="copyAllocationsModalLabel">
+                        <i class="bi bi-copy me-2"></i>Copy Allocations from Another Exam
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{% url 'copy_exam_allocations' exam.id %}" method="post">
+                    {% csrf_token %}
+                    <div class="modal-body p-4">
+                        <div class="alert alert-info d-flex align-items-start gap-2 py-2 px-3 mb-3 border-0 bg-info-subtle text-info-emphasis">
+                            <i class="bi bi-info-circle-fill fs-5 mt-1"></i>
+                            <div class="small">
+                                Quickly duplicate all subject-division allocations from another exam into <strong>{{ exam.title }}</strong>. This eliminates repetitive manual selection.
+                            </div>
+                        </div>
+
+                        {% if other_exams %}
+                        <div class="mb-3">
+                            <label for="source_exam_id" class="form-label fw-bold">Select Source Exam <span class="text-danger">*</span></label>
+                            <select name="source_exam_id" id="source_exam_id" class="form-select form-select-lg" required>
+                                <option value="" disabled selected>-- Choose an exam to copy from --</option>
+                                {% for oe in other_exams %}
+                                    <option value="{{ oe.id }}">
+                                        {{ oe.title }} ({{ oe.academic_year }}) — {{ oe.alloc_count }} allocations
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text text-muted small mt-1">
+                                Choose an exam with configured allocations to copy from.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Copy Mode</label>
+                            <div class="card p-3 bg-light border-0">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="copy_mode" id="copyModeReplace" value="replace" checked>
+                                    <label class="form-check-label fw-semibold text-dark" for="copyModeReplace">
+                                        Replace Existing Allocations <span class="badge bg-primary ms-1">Recommended</span>
+                                    </label>
+                                    <div class="text-muted small ps-4">
+                                        Overwrites current allocations for this exam with the selected exam's allocations.
+                                    </div>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="copy_mode" id="copyModeMerge" value="merge">
+                                    <label class="form-check-label fw-semibold text-dark" for="copyModeMerge">
+                                        Merge with Existing Allocations
+                                    </label>
+                                    <div class="text-muted small ps-4">
+                                        Keeps all existing allocations and adds any missing subject-division pairs.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-2.5 rounded bg-warning-subtle text-warning-emphasis small border border-warning-subtle">
+                            <i class="bi bi-shield-check me-1 fw-bold"></i>
+                            <strong>Fresh Submissions:</strong> Copied records will start in <strong>Pending</strong> status with blank teacher names so teachers can submit their syllabus portions.
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-folder-x fs-1 text-muted d-block mb-2"></i>
+                            <h6 class="fw-bold text-muted">No Other Exams Available</h6>
+                            <p class="text-muted small mb-0">You need at least one other exam created in the system to copy allocations from.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer bg-light px-4 py-3">
+                        <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancel</button>
+                        {% if other_exams %}
+                        <button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm">
+                            <i class="bi bi-copy me-1"></i> Copy Allocations Now
+                        </button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
