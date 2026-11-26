@@ -194,7 +194,10 @@ class PerformanceAndCompatibilityTests(TestCase):
 
         get_routes = [
             reverse('toggle_exam_active', args=[self.exam.id]),
+            reverse('toggle_exam_target_marks_timing', args=[self.exam.id]),
+            reverse('bulk_update_exam_marks_timing', args=[self.exam.id]),
             reverse('delete_exam', args=[self.other_exam.id]),
+            reverse('update_submission_marks_timing', args=[sub.id]),
             reverse('delete_submission', args=[sub.id]),
             reverse('delete_subject', args=[free_subj.id]),
             reverse('delete_division', args=[free_div.id]),
@@ -251,3 +254,155 @@ class PerformanceAndCompatibilityTests(TestCase):
         r2 = self.client.get(reverse('api_teacher_portal'))
         self.assertNotEqual(r2.get('ETag'), etag1)
         self.assertEqual(r2.json()['active_exams'], [])
+
+    def test_hide_target_marks_timing_toggle_and_teacher_submission_flow(self):
+        self.client.force_login(self.user)
+
+        # Create a mix of PENDING and APPROVED submissions
+        pending_subs = self.submissions[:4]
+        PortionSubmission.objects.filter(id__in=[s.id for s in pending_subs]).update(
+            status='PENDING',
+            total_marks=80,
+            duration_minutes=180,
+        )
+        submitted_sub = self.submissions[4]  # remains SUBMITTED (40M / 120m)
+
+        # Toggle ON "Remove Target Marks & Timing Before Submission"
+        with self.captureOnCommitCallbacks(execute=True):
+            t_resp = self.client.post(reverse('toggle_exam_target_marks_timing', args=[self.exam.id]))
+        self.assertRedirects(t_resp, reverse('exam_detail_dashboard', args=[self.exam.id]))
+
+        self.exam.refresh_from_db()
+        self.assertTrue(self.exam.hide_target_before_submission)
+        for s in pending_subs:
+            s.refresh_from_db()
+            self.assertEqual(s.total_marks, 0)
+            self.assertEqual(s.duration_minutes, 0)
+        submitted_sub.refresh_from_db()
+        self.assertEqual(submitted_sub.total_marks, 40)
+        self.assertEqual(submitted_sub.duration_minutes, 120)
+
+        dash = self.client.get(reverse('exam_detail_dashboard', args=[self.exam.id]))
+        self.assertContains(dash, 'From Teacher')
+
+        # API exposes unset targets + hide flag
+        detail = self.client.get(reverse('api_teacher_submission_detail', args=[pending_subs[0].id])).json()['submission']
+        self.assertTrue(detail['hide_target_before_submission'])
+        self.assertEqual(detail['total_marks'], 0)
+        self.assertEqual(detail['duration_minutes'], 0)
+
+        # Teacher submit must fail if duration_minutes is omitted/0 when target duration was removed
+        bad_resp = self.client.post(
+            reverse('api_teacher_submit_portion', args=[pending_subs[0].id]),
+            data=json.dumps({
+                'teacher_name': 'Prof. Nair',
+                'syllabus_portion': 'Units 1 and 2',
+                'instructions_for_students': '',
+                'duration_minutes': 0,
+                'pattern_items': [
+                    {'section_name': 'A', 'question_type': 'MCQ', 'number_of_questions': 5, 'marks_per_question': 5.0, 'choice_info': ''},
+                ],
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(bad_resp.status_code, 400)
+
+        # Valid submission stores teacher-entered duration & blueprint total marks
+        good_resp = self.client.post(
+            reverse('api_teacher_submit_portion', args=[pending_subs[0].id]),
+            data=json.dumps({
+                'teacher_name': 'Prof. Nair',
+                'syllabus_portion': 'Units 1 and 2',
+                'instructions_for_students': '',
+                'duration_minutes': 90,
+                'pattern_items': [
+                    {'section_name': 'A', 'question_type': 'MCQ', 'number_of_questions': 5, 'marks_per_question': 5.0, 'choice_info': ''},
+                ],
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(good_resp.status_code, 200)
+        pending_subs[0].refresh_from_db()
+        self.assertEqual(pending_subs[0].status, 'SUBMITTED')
+        self.assertEqual(pending_subs[0].total_marks, 25)
+        self.assertEqual(pending_subs[0].duration_minutes, 90)
+
+        # Toggle back OFF restores defaults on remaining unset PENDING records
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse('toggle_exam_target_marks_timing', args=[self.exam.id]))
+        pending_subs[1].refresh_from_db()
+        self.assertEqual(pending_subs[1].total_marks, 80)
+        self.assertEqual(pending_subs[1].duration_minutes, 180)
+
+    def test_bulk_and_individual_marks_timing_updates_and_customize_preservation(self):
+        self.client.force_login(self.user)
+
+        # Mark one division as APPROVED and rest PENDING so scope filtering can be tested
+        subj1_subs = list(PortionSubmission.objects.filter(exam=self.exam, subject_name='Subject 1'))
+        PortionSubmission.objects.filter(exam=self.exam).update(status='PENDING', total_marks=80, duration_minutes=180)
+        approved_sub = subj1_subs[0]
+        approved_sub.status = 'APPROVED'
+        approved_sub.total_marks = 100
+        approved_sub.save(update_fields=['status', 'total_marks'])
+
+        # 1. Individual edit with apply_to_subject_all_classes (excluding approved)
+        self.client.post(
+            reverse('update_submission_marks_timing', args=[subj1_subs[1].id]),
+            {
+                'total_marks': '50',
+                'duration_minutes': '120',
+                'apply_to_subject_all_classes': 'on',
+            },
+        )
+        subj1_subs[1].refresh_from_db()
+        subj1_subs[2].refresh_from_db()
+        approved_sub.refresh_from_db()
+        self.assertEqual((subj1_subs[1].total_marks, subj1_subs[1].duration_minutes), (50, 120))
+        self.assertEqual((subj1_subs[2].total_marks, subj1_subs[2].duration_minutes), (50, 120))
+        self.assertEqual(approved_sub.total_marks, 100)  # Approved stays untouched
+
+        # 2. Customize exam subjects without overwrite preserves per-subject marks
+        post_data = {'total_marks': '80', 'duration_minutes': '180'}
+        for div in self.divisions:
+            for subj in self.subjects:
+                post_data[f'alloc_{subj.id}_{div.id}'] = 'on'
+        self.client.post(reverse('customize_exam_subjects', args=[self.exam.id]), post_data)
+        subj1_subs[1].refresh_from_db()
+        self.assertEqual(subj1_subs[1].total_marks, 50)
+
+        # 3. Bulk per-subject update across divisions
+        self.client.post(
+            reverse('bulk_update_exam_marks_timing', args=[self.exam.id]),
+            {
+                'update_mode': 'per_subject',
+                'status_scope': 'pending_only',
+                'subject_row_key': ['0', '1'],
+                'subject_name_0': 'Subject 2',
+                'subj_marks_0': '35',
+                'subj_duration_0': '60',
+                'subject_name_1': 'Subject 3',
+                'subj_marks_1': '',  # Blank skips Subject 3 marks
+                'subj_duration_1': '90',
+            },
+        )
+        s2 = PortionSubmission.objects.filter(exam=self.exam, subject_name='Subject 2').first()
+        s3 = PortionSubmission.objects.filter(exam=self.exam, subject_name='Subject 3').first()
+        self.assertEqual((s2.total_marks, s2.duration_minutes), (35, 60))
+        self.assertEqual((s3.total_marks, s3.duration_minutes), (80, 90))
+
+        # 4. Bulk all subjects together update
+        self.client.post(
+            reverse('bulk_update_exam_marks_timing', args=[self.exam.id]),
+            {
+                'update_mode': 'all',
+                'status_scope': 'non_approved',
+                'bulk_total_marks': '60',
+                'bulk_duration_minutes': '150',
+            },
+        )
+        self.assertEqual(
+            PortionSubmission.objects.filter(exam=self.exam, total_marks=60, duration_minutes=150).count(),
+            len(self.submissions) - 1,
+        )
+        approved_sub.refresh_from_db()
+        self.assertEqual(approved_sub.total_marks, 100)

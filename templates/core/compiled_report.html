@@ -369,7 +369,7 @@
                             </td>
                         {% endif %}
                         <td class="marks-cell align-middle">
-                            {{ sub.total_marks }}
+                            {% if sub.total_marks > 0 %}{{ sub.total_marks }}{% else %}&mdash;{% endif %}
                         </td>
                     </tr>
                     {% empty %}

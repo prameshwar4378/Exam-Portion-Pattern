@@ -39,11 +39,20 @@ class ExamForm(forms.ModelForm):
 
     class Meta:
         model = Exam
-        fields = ['school_name', 'title', 'academic_year', 'header_subtitle', 'note_text', 'is_active']
+        fields = [
+            'school_name',
+            'title',
+            'academic_year',
+            'header_subtitle',
+            'note_text',
+            'is_active',
+            'hide_target_before_submission',
+        ]
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Annual Examination 2026, Mid-Term Test'}),
             'academic_year': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. 2026-2027'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'hide_target_before_submission': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
     def clean_school_name(self):
@@ -65,6 +74,20 @@ class TeacherSubmissionForm(forms.ModelForm):
         required=True,
         error_messages={'required': 'Syllabus Portion (Chapters / Units / Topics Included) is required.'}
     )
+    total_marks = forms.IntegerField(
+        required=False,
+        min_value=0,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'placeholder': 'Auto from Blueprint'})
+    )
+    duration_minutes = forms.IntegerField(
+        required=True,
+        min_value=1,
+        error_messages={
+            'required': 'Exam Duration (Minutes) is required.',
+            'min_value': 'Exam Duration must be at least 1 minute.',
+        },
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'placeholder': 'e.g. 180', 'required': 'required'})
+    )
 
     class Meta:
         model = PortionSubmission
@@ -72,9 +95,20 @@ class TeacherSubmissionForm(forms.ModelForm):
         widgets = {
             'teacher_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter your full name', 'required': 'required'}),
             'instructions_for_students': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'e.g. Scientific calculators allowed'}),
-            'total_marks': forms.NumberInput(attrs={'class': 'form-control'}),
-            'duration_minutes': forms.NumberInput(attrs={'class': 'form-control'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        inst = getattr(self, 'instance', None)
+        if inst is not None and inst.pk is not None:
+            if (inst.total_marks or 0) <= 0:
+                self.initial['total_marks'] = ''
+            if (inst.duration_minutes or 0) <= 0:
+                self.initial['duration_minutes'] = ''
+
+    def clean_total_marks(self):
+        val = self.cleaned_data.get('total_marks')
+        return val if val is not None else 0
 
 class QuestionPatternItemForm(forms.ModelForm):
     question_type = forms.CharField(

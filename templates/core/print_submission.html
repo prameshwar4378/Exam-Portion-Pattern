@@ -52,11 +52,11 @@
             </div>
             <div class="col-6 mt-2">
                 <span class="text-muted small d-block">Total Marks:</span>
-                <strong>{{ submission.total_marks }} Marks</strong>
+                <strong>{% if submission.total_marks > 0 %}{{ submission.total_marks }} Marks{% else %}&mdash;{% endif %}</strong>
             </div>
             <div class="col-6 mt-2">
                 <span class="text-muted small d-block">Time Duration:</span>
-                <strong>{{ submission.duration_minutes }} Minutes</strong>
+                <strong>{% if submission.duration_minutes > 0 %}{{ submission.duration_minutes }} Minutes{% else %}&mdash;{% endif %}</strong>
             </div>
         </div>
 
@@ -111,7 +111,7 @@
                 <tfoot>
                     <tr class="table-secondary">
                         <th colspan="4" class="text-end fw-bold">TOTAL MARKS:</th>
-                        <th class="text-end fs-6 fw-bold text-dark">{{ submission.total_calculated_marks }} / {{ submission.total_marks }}</th>
+                        <th class="text-end fs-6 fw-bold text-dark">{{ submission.total_calculated_marks }}{% if submission.has_target_marks %} / {{ submission.total_marks }}{% endif %}</th>
                     </tr>
                 </tfoot>
             </table>

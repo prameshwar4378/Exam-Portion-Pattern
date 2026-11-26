@@ -51,6 +51,10 @@ class Exam(models.Model):
     header_subtitle = models.CharField(max_length=200, default="(Syllabus Paper & Time table)", help_text="Subtitle e.g. (Syllabus Paper & Time table)")
 
     note_text = models.CharField(max_length=300, default="NOTE: Kindly pay your wards fees before exam and collect the exam pass from the office.", help_text="Bottom note")
+    hide_target_before_submission = models.BooleanField(
+        default=False,
+        help_text="Hide pre-set marks and duration before teacher submission so teachers enter them on submit.",
+    )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
 
@@ -119,6 +123,14 @@ class PortionSubmission(models.Model):
         if self.division_ref_id and (update_fields is None or 'class_name' in update_fields):
             self.class_name = str(self.division_ref)
         super().save(*args, **kwargs)
+
+    @property
+    def has_target_marks(self):
+        return (self.total_marks or 0) > 0
+
+    @property
+    def has_target_duration(self):
+        return (self.duration_minutes or 0) > 0
 
     @property
     def total_calculated_marks(self):

@@ -11,9 +11,12 @@ urlpatterns = [
     path('exam/<int:exam_id>/edit/', views.edit_exam, name='edit_exam'),
     path('exam/<int:exam_id>/delete/', views.delete_exam, name='delete_exam'),
     path('exam/<int:exam_id>/toggle-active/', views.toggle_exam_active, name='toggle_exam_active'),
+    path('exam/<int:exam_id>/toggle-target-marks-timing/', views.toggle_exam_target_marks_timing, name='toggle_exam_target_marks_timing'),
+    path('exam/<int:exam_id>/update-marks-timing/', views.bulk_update_exam_marks_timing, name='bulk_update_exam_marks_timing'),
     path('exam/<int:exam_id>/dashboard/', views.exam_detail_dashboard, name='exam_detail_dashboard'),
 
     path('submission/<uuid:submission_id>/review/', views.review_submission, name='review_submission'),
+    path('submission/<uuid:submission_id>/update-marks-timing/', views.update_submission_marks_timing, name='update_submission_marks_timing'),
     path('submission/<uuid:submission_id>/print/', views.print_submission_view, name='print_submission'),
     path('submission/<uuid:submission_id>/delete/', views.delete_submission, name='delete_submission'),
     path('exam/<int:exam_id>/compiled-report/', views.compiled_exam_report, name='compiled_exam_report'),

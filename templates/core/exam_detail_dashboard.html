@@ -169,6 +169,21 @@
                     </button>
                 {% endif %}
             </form>
+            <form method="post" action="{% url 'toggle_exam_target_marks_timing' active_exam.id %}" class="d-inline">
+                {% csrf_token %}
+                {% if active_exam.hide_target_before_submission %}
+                    <button type="submit" class="btn btn-outline-info btn-sm px-2.5 py-1 fw-semibold" data-loading-text="Updating..." title="Pre-set target Marks & Timing are removed for pending subjects; click to restore pre-set targets">
+                        <i class="bi bi-clock-history me-1"></i> Targets: From Teacher (Enable Targets)
+                    </button>
+                {% else %}
+                    <button type="submit" class="btn btn-outline-secondary btn-sm px-2.5 py-1 fw-semibold" data-loading-text="Removing..." title="Hide target Marks & Timing before submission and collect from teachers on submit" onclick="return confirm('Remove pre-set Target Marks & Timing from all PENDING subjects in this exam? Teachers will enter Marks & Exam Duration when submitting.');">
+                        <i class="bi bi-eraser me-1 text-danger"></i> Remove Target Marks & Time
+                    </button>
+                {% endif %}
+            </form>
+            <button type="button" class="btn btn-outline-primary btn-sm px-2.5 py-1 fw-bold" data-bs-toggle="modal" data-bs-target="#bulkMarksTimingModal">
+                <i class="bi bi-pencil-square me-1"></i> Bulk Update Marks & Time
+            </button>
             <a href="{% url 'customize_exam_subjects' active_exam.id %}" class="btn btn-warning text-dark fw-bold btn-sm px-2.5 py-1">
                 <i class="bi bi-sliders me-1"></i> Subject Customization
             </a>
@@ -263,7 +278,10 @@
                 </button>
             </div>
 
-            <!-- Customize Button -->
+            <!-- Bulk Marks & Customize Buttons -->
+            <button type="button" class="btn btn-primary btn-customize-action shadow-sm" data-bs-toggle="modal" data-bs-target="#bulkMarksTimingModal">
+                <i class="bi bi-sliders2 me-1.5"></i> Update Marks & Time
+            </button>
             <a href="{% url 'customize_exam_subjects' active_exam.id %}" class="btn btn-warning text-dark btn-customize-action shadow-sm">
                 <i class="bi bi-sliders me-1.5"></i> Customize Subjects & Divisions
             </a>
@@ -375,7 +393,29 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <small class="text-muted fw-semibold">{{ sub.total_marks }} Marks | {{ sub.duration_minutes }} mins</small>
+                                    <div class="d-inline-flex align-items-center gap-1.5">
+                                        {% if sub.status == 'PENDING' and not sub.has_target_marks and not sub.has_target_duration %}
+                                            <span class="badge bg-light text-secondary border fw-semibold"><i class="bi bi-clock me-1"></i>From Teacher</span>
+                                        {% elif sub.status == 'PENDING' and not sub.has_target_marks %}
+                                            <small class="text-muted fw-semibold">Marks: From Teacher | {{ sub.duration_minutes }} mins</small>
+                                        {% elif sub.status == 'PENDING' and not sub.has_target_duration %}
+                                            <small class="text-muted fw-semibold">{{ sub.total_marks }} Marks | Time: From Teacher</small>
+                                        {% else %}
+                                            <small class="text-muted fw-semibold">{{ sub.total_marks }} Marks | {{ sub.duration_minutes }} mins</small>
+                                        {% endif %}
+                                        <button type="button"
+                                            class="btn btn-link btn-sm p-0 text-primary"
+                                            title="Edit Marks & Timing"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editSubmissionMarksModal"
+                                            data-update-url="{% url 'update_submission_marks_timing' sub.id %}"
+                                            data-subject="{{ sub.subject_name }}"
+                                            data-class="{{ group.class_name }}"
+                                            data-marks="{{ sub.total_marks }}"
+                                            data-duration="{{ sub.duration_minutes }}">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </button>
+                                    </div>
                                 </td>
                                 <td>
                                     <div class="input-group input-group-sm copy-link-group" style="max-width: 220px;">
@@ -421,6 +461,192 @@
 
     </div>
     {% endfor %}
+</div>
+
+<!-- Individual Subject Marks & Timing Edit Modal -->
+<div class="modal fade" id="editSubmissionMarksModal" tabindex="-1" aria-labelledby="editSubmissionMarksLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header bg-primary text-white py-3">
+                <h5 class="modal-title fw-bold" id="editSubmissionMarksLabel">
+                    <i class="bi bi-pencil-square me-2"></i>Update Subject Marks & Timing
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editSubmissionMarksForm" method="post" action="">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="mb-3 p-2.5 bg-light rounded border small">
+                        <strong id="editSubModalSubject" class="text-primary"></strong>
+                        <span class="text-muted mx-1">|</span>
+                        <span id="editSubModalClass" class="fw-semibold text-dark"></span>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label for="editSubMarksInput" class="form-label fw-semibold small">Total Marks</label>
+                            <input type="number" min="0" class="form-control" id="editSubMarksInput" name="total_marks" required>
+                            <div class="form-text small">Enter <code>0</code> to clear pre-set target marks.</div>
+                        </div>
+                        <div class="col-6">
+                            <label for="editSubDurationInput" class="form-label fw-semibold small">Exam Duration (Mins)</label>
+                            <input type="number" min="0" class="form-control" id="editSubDurationInput" name="duration_minutes" required>
+                            <div class="form-text small">Enter <code>0</code> to let teacher fill on submit.</div>
+                        </div>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="applySubjectAllClassesChk" name="apply_to_subject_all_classes">
+                        <label class="form-check-label small fw-semibold" for="applySubjectAllClassesChk">
+                            Apply to <strong>all classes/divisions</strong> of <span id="editSubApplySubjectLabel">this subject</span> in this exam
+                        </label>
+                    </div>
+                    <div class="form-check d-none" id="includeApprovedSubWrap">
+                        <input class="form-check-input" type="checkbox" id="includeApprovedSubChk" name="include_approved">
+                        <label class="form-check-label small text-danger" for="includeApprovedSubChk">
+                            Also update already Approved classes
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light px-4 py-3">
+                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4" data-loading-text="Saving...">
+                        <i class="bi bi-check2-circle me-1"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Update Marks & Timing Modal (All Subjects & Per-Subject) -->
+<div class="modal fade" id="bulkMarksTimingModal" tabindex="-1" aria-labelledby="bulkMarksTimingLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold" id="bulkMarksTimingLabel">
+                    <i class="bi bi-sliders2 me-2"></i>Bulk Update Marks & Timing — {{ active_exam.title }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <ul class="nav nav-pills mb-3 gap-2" id="bulkUpdateTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-bold" id="tab-all-subj-btn" data-bs-toggle="pill" data-bs-target="#tabAllSubjects" type="button" role="tab">
+                            <i class="bi bi-collection me-1"></i> All Subjects Together
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold" id="tab-per-subj-btn" data-bs-toggle="pill" data-bs-target="#tabPerSubject" type="button" role="tab">
+                            <i class="bi bi-book me-1"></i> Individual / Per Subject ({{ distinct_subjects|length }})
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Tab 1: Uniform Update Across All Subjects -->
+                    <div class="tab-pane fade show active" id="tabAllSubjects" role="tabpanel">
+                        <form method="post" action="{% url 'bulk_update_exam_marks_timing' active_exam.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="update_mode" value="all">
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label for="bulkTotalMarksInput" class="form-label fw-semibold small">Total Marks for All Subjects</label>
+                                    <input type="number" min="0" class="form-control" id="bulkTotalMarksInput" name="bulk_total_marks" placeholder="Leave blank to keep existing (0 = clear)">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="bulkDurationInput" class="form-label fw-semibold small">Duration (Minutes) for All Subjects</label>
+                                    <input type="number" min="0" class="form-control" id="bulkDurationInput" name="bulk_duration_minutes" placeholder="Leave blank to keep existing (0 = clear)">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="bulkScopeAll" class="form-label fw-semibold small">Which Records to Update?</label>
+                                <select class="form-select" id="bulkScopeAll" name="status_scope">
+                                    <option value="pending_only" selected>Pending & Revision Requests Only (Preserve teacher-submitted & approved)</option>
+                                    <option value="non_approved">All Non-Approved (Pending, Revision & Submitted)</option>
+                                    <option value="all">All Records (Including Approved)</option>
+                                </select>
+                            </div>
+
+                            {% if active_exam.hide_target_before_submission %}
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="enablePresetAllChk" name="enable_preset_targets" checked>
+                                <label class="form-check-label small fw-semibold" for="enablePresetAllChk">
+                                    Re-enable displaying target Marks & Time on this exam before submission
+                                </label>
+                            </div>
+                            {% endif %}
+
+                            <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary fw-bold px-4" data-loading-text="Updating All...">
+                                    <i class="bi bi-check-all me-1"></i> Apply to All Subjects
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Tab 2: Per-Subject Bulk Update Across Classes -->
+                    <div class="tab-pane fade" id="tabPerSubject" role="tabpanel">
+                        <form method="post" action="{% url 'bulk_update_exam_marks_timing' active_exam.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="update_mode" value="per_subject">
+
+                            <div class="mb-3">
+                                <label for="bulkScopePerSubj" class="form-label fw-semibold small">Which Records to Update?</label>
+                                <select class="form-select form-select-sm" id="bulkScopePerSubj" name="status_scope">
+                                    <option value="pending_only" selected>Pending & Revision Requests Only (Recommended)</option>
+                                    <option value="non_approved">All Non-Approved (Pending, Revision & Submitted)</option>
+                                    <option value="all">All Records (Including Approved)</option>
+                                </select>
+                            </div>
+
+                            <div class="table-responsive border rounded mb-3" style="max-height: 360px;">
+                                <table class="table table-sm table-hover align-middle mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr class="small text-muted">
+                                            <th>Subject (Classes)</th>
+                                            <th style="width: 150px;">Marks</th>
+                                            <th style="width: 160px;">Duration (Mins)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in distinct_subjects %}
+                                        <tr>
+                                            <td>
+                                                <input type="hidden" name="subject_row_key" value="{{ item.key }}">
+                                                <input type="hidden" name="subject_name_{{ item.key }}" value="{{ item.subject_name }}">
+                                                <div class="fw-bold text-dark">{{ item.subject_name }}</div>
+                                                <small class="text-muted">{{ item.count }} classes • Current: {{ item.marks_label }} / {{ item.dur_label }}</small>
+                                            </td>
+                                            <td>
+                                                <input type="number" min="0" class="form-control form-control-sm" name="subj_marks_{{ item.key }}" value="{{ item.marks_val }}" placeholder="{{ item.marks_label }}">
+                                            </td>
+                                            <td>
+                                                <input type="number" min="0" class="form-control form-control-sm" name="subj_duration_{{ item.key }}" value="{{ item.dur_val }}" placeholder="{{ item.dur_label }}">
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted py-3">No subjects allocated in this exam yet.</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-success fw-bold px-4" data-loading-text="Saving...">
+                                    <i class="bi bi-check2-circle me-1"></i> Save Subject Updates
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -729,6 +955,47 @@ function collapseAllGroups() {
     });
     saveAllAccordionStates(false);
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    const editModal = document.getElementById('editSubmissionMarksModal');
+    const applyAllChk = document.getElementById('applySubjectAllClassesChk');
+    const includeApprovedWrap = document.getElementById('includeApprovedSubWrap');
+
+    if (applyAllChk && includeApprovedWrap) {
+        applyAllChk.addEventListener('change', function() {
+            includeApprovedWrap.classList.toggle('d-none', !applyAllChk.checked);
+        });
+    }
+
+    if (editModal) {
+        editModal.addEventListener('show.bs.modal', function(event) {
+            const btn = event.relatedTarget;
+            if (!btn) return;
+            const form = document.getElementById('editSubmissionMarksForm');
+            const subj = btn.getAttribute('data-subject') || '';
+            const cls = btn.getAttribute('data-class') || '';
+            const marks = btn.getAttribute('data-marks') || '0';
+            const duration = btn.getAttribute('data-duration') || '0';
+
+            if (form) form.setAttribute('action', btn.getAttribute('data-update-url') || '');
+            const subjEl = document.getElementById('editSubModalSubject');
+            const clsEl = document.getElementById('editSubModalClass');
+            const applyLblEl = document.getElementById('editSubApplySubjectLabel');
+            const marksInput = document.getElementById('editSubMarksInput');
+            const durInput = document.getElementById('editSubDurationInput');
+
+            if (subjEl) subjEl.textContent = subj;
+            if (clsEl) clsEl.textContent = cls;
+            if (applyLblEl) applyLblEl.textContent = subj || 'this subject';
+            if (marksInput) marksInput.value = marks;
+            if (durInput) durInput.value = duration;
+            if (applyAllChk) {
+                applyAllChk.checked = false;
+                if (includeApprovedWrap) includeApprovedWrap.classList.add('d-none');
+            }
+        });
+    }
+});
 </script>
 {% endblock %}
 

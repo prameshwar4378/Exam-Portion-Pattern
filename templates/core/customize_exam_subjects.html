@@ -34,16 +34,40 @@
 
         <!-- Default Settings Bar -->
         <div class="card glass-card p-4 mb-4 border-info">
-            <h5 class="fw-bold text-info mb-3"><i class="bi bi-sliders me-2"></i>Default Paper Settings for allocated subjects</h5>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label for="total_marks" class="form-label font-semibold">Default Total Marks</label>
-                    <input type="number" name="total_marks" id="total_marks" class="form-control" value="80" required>
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+                <h5 class="fw-bold text-info mb-0"><i class="bi bi-sliders me-2"></i>Target Marks & Exam Timing Settings</h5>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="hideTargetSwitch" name="hide_target_before_submission" {% if exam.hide_target_before_submission %}checked{% endif %} onchange="togglePresetInputs()">
+                    <label class="form-check-label fw-bold text-dark" for="hideTargetSwitch">
+                        Remove Pre-set Marks & Timing (Collect from Teacher on Submit)
+                    </label>
                 </div>
-                <div class="col-md-6">
-                    <label for="duration_minutes" class="form-label font-semibold">Default Exam Duration (Minutes)</label>
-                    <input type="number" name="duration_minutes" id="duration_minutes" class="form-control" value="180" required>
+            </div>
+
+            <div id="hiddenTargetNotice" class="alert alert-secondary py-2 px-3 small mb-0 {% if not exam.hide_target_before_submission %}d-none{% endif %}">
+                <i class="bi bi-info-circle-fill me-1 text-primary"></i>
+                Target Marks & Duration are hidden for pending subjects. Teachers will enter Exam Duration and Blueprint Marks when they submit their syllabus.
+            </div>
+
+            <div id="presetMarksTimingFields" class="{% if exam.hide_target_before_submission %}d-none{% endif %}">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="total_marks" class="form-label font-semibold">Default Total Marks</label>
+                        <input type="number" name="total_marks" id="total_marks" class="form-control" value="80" min="0" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="duration_minutes" class="form-label font-semibold">Default Exam Duration (Minutes)</label>
+                        <input type="number" name="duration_minutes" id="duration_minutes" class="form-control" value="180" min="0" required>
+                    </div>
                 </div>
+                {% if has_existing_allocations %}
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="applyDefaultsExisting" name="apply_defaults_to_existing">
+                    <label class="form-check-label small fw-semibold text-secondary" for="applyDefaultsExisting">
+                        Overwrite existing allocated subjects' Marks & Duration with these defaults (leave unchecked to keep per-subject values)
+                    </label>
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -442,6 +466,21 @@ function bulkSetClass(divId, enable) {
         }
     });
 }
+
+function togglePresetInputs() {
+    const sw = document.getElementById('hideTargetSwitch');
+    const fields = document.getElementById('presetMarksTimingFields');
+    const notice = document.getElementById('hiddenTargetNotice');
+    const totalInput = document.getElementById('total_marks');
+    const durInput = document.getElementById('duration_minutes');
+    if (!sw || !fields || !notice) return;
+    const hide = sw.checked;
+    fields.classList.toggle('d-none', hide);
+    notice.classList.toggle('d-none', !hide);
+    if (totalInput) totalInput.required = !hide;
+    if (durInput) durInput.required = !hide;
+}
+document.addEventListener('DOMContentLoaded', togglePresetInputs);
 </script>
 {% endblock %}
 

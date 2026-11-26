@@ -10,8 +10,8 @@
                 <i class="bi bi-arrow-left"></i>
             </a>
             <div>
-                <h3 class="fw-bold mb-0">Create New Examination</h3>
-                <p class="text-muted small mb-0">Add an exam title to collect syllabus portions for</p>
+                <h3 class="fw-bold mb-0">{% if edit_instance %}Edit Examination{% else %}Create New Examination{% endif %}</h3>
+                <p class="text-muted small mb-0">Add or update an examination to collect syllabus portions and timetables for</p>
             </div>
         </div>
 
@@ -43,11 +43,23 @@
                 <div class="form-text">e.g., 2026-2027</div>
             </div>
 
-            <div class="mb-4 form-check">
+            <div class="mb-3 form-check">
                 {{ form.is_active }}
                 <label class="form-check-label font-semibold" for="{{ form.is_active.id_for_label }}">
                     Mark as Active Exam
                 </label>
+            </div>
+
+            <div class="mb-4 p-3 rounded-3 border bg-light">
+                <div class="form-check mb-1">
+                    {{ form.hide_target_before_submission }}
+                    <label class="form-check-label fw-bold text-dark" for="{{ form.hide_target_before_submission.id_for_label }}">
+                        Remove Pre-set Target Marks & Timing Before Submission
+                    </label>
+                </div>
+                <div class="form-text ms-4">
+                    When checked, pending subjects will not display pre-set Marks or Duration (e.g. 80 Marks / 180 mins). Teachers will enter the actual Exam Duration and Blueprint Marks when submitting.
+                </div>
             </div>
 
             <!-- Optional Advanced Header Settings -->

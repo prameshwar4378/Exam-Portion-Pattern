@@ -37,7 +37,22 @@
             </div>
             <div class="col-md-3">
                 <small class="text-muted d-block font-semibold">Total Marks / Time</small>
-                <span class="fw-bold text-dark fs-6">{{ submission.total_marks }} Marks ({{ submission.duration_minutes }} mins)</span>
+                <div class="d-inline-flex align-items-center gap-2">
+                    <span class="fw-bold text-dark fs-6">
+                        {% if submission.status == 'PENDING' and not submission.has_target_marks and not submission.has_target_duration %}
+                            <span class="text-secondary">From Teacher (Pending)</span>
+                        {% elif submission.status == 'PENDING' and not submission.has_target_marks %}
+                            From Teacher ({{ submission.duration_minutes }} mins)
+                        {% elif submission.status == 'PENDING' and not submission.has_target_duration %}
+                            {{ submission.total_marks }} Marks (Time from Teacher)
+                        {% else %}
+                            {{ submission.total_marks }} Marks ({{ submission.duration_minutes }} mins)
+                        {% endif %}
+                    </span>
+                    <button type="button" class="btn btn-outline-primary btn-sm py-0 px-1.5" data-bs-toggle="modal" data-bs-target="#reviewEditMarksModal" title="Edit Marks & Timing">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                </div>
             </div>
             <div class="col-md-3">
                 <small class="text-muted d-block font-semibold">Submission Date</small>
@@ -105,7 +120,9 @@
                     <tfoot class="table-light">
                         <tr>
                             <th colspan="4" class="text-end">Total Calculated Marks:</th>
-                            <th class="text-end text-primary fs-5 fw-bold">{{ submission.total_calculated_marks }} / {{ submission.total_marks }}</th>
+                            <th class="text-end text-primary fs-5 fw-bold">
+                                {{ submission.total_calculated_marks }}{% if submission.has_target_marks %} / {{ submission.total_marks }}{% endif %}
+                            </th>
                         </tr>
                     </tfoot>
 
@@ -136,6 +153,48 @@
                 </div>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Quick Edit Marks & Timing Modal -->
+<div class="modal fade" id="reviewEditMarksModal" tabindex="-1" aria-labelledby="reviewEditMarksLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header bg-primary text-white py-3">
+                <h5 class="modal-title fw-bold" id="reviewEditMarksLabel">
+                    <i class="bi bi-pencil-square me-2"></i>Update Marks & Duration
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'update_submission_marks_timing' submission.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.path }}">
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label for="revMarksInput" class="form-label fw-semibold small">Total Marks</label>
+                            <input type="number" min="0" class="form-control" id="revMarksInput" name="total_marks" value="{{ submission.total_marks }}" required>
+                        </div>
+                        <div class="col-6">
+                            <label for="revDurationInput" class="form-label fw-semibold small">Duration (Minutes)</label>
+                            <input type="number" min="0" class="form-control" id="revDurationInput" name="duration_minutes" value="{{ submission.duration_minutes }}" required>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="revApplyAllChk" name="apply_to_subject_all_classes">
+                        <label class="form-check-label small fw-semibold" for="revApplyAllChk">
+                            Apply to all non-approved classes of {{ submission.subject_name }}
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light px-4 py-3">
+                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4" data-loading-text="Saving...">
+                        <i class="bi bi-check2-circle me-1"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 {% endblock %}

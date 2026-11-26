@@ -67,7 +67,9 @@ def teacher_portal_api(request):
 
     if payload is None:
         active_exams = list(
-            Exam.objects.filter(is_active=True).values('id', 'title', 'academic_year')
+            Exam.objects.filter(is_active=True).values(
+                'id', 'title', 'academic_year', 'hide_target_before_submission'
+            )
         )
         divisions = [
             {
@@ -83,6 +85,7 @@ def teacher_portal_api(request):
             'id',
             'exam_id',
             'exam__title',
+            'exam__hide_target_before_submission',
             'master_subject_id',
             'master_subject__code',
             'division_ref_id',
@@ -121,6 +124,7 @@ def teacher_portal_api(request):
                 'id': sub_id_str,
                 'exam_id': sub['exam_id'],
                 'exam_title': sub['exam__title'],
+                'hide_target_before_submission': sub['exam__hide_target_before_submission'],
                 'class_name': sub['class_name'],
                 'subject_name': sub['subject_name'],
                 'teacher_name': _clean_teacher_name(status, sub['teacher_name']),
@@ -253,6 +257,7 @@ def teacher_submission_detail_api(request, token):
             'exam_title': submission.exam.title,
             'academic_year': submission.exam.academic_year,
             'is_exam_active': submission.exam.is_active,
+            'hide_target_before_submission': submission.exam.hide_target_before_submission,
             'class_name': submission.class_name,
             'subject_name': submission.subject_name,
             'teacher_name': _clean_teacher_name(submission.status, submission.teacher_name),
@@ -301,7 +306,7 @@ def teacher_submit_portion_api(request, token):
     teacher_name = str(data.get('teacher_name') or '').strip()
     syllabus_portion = str(data.get('syllabus_portion') or '').strip()
     instructions_for_students = str(data.get('instructions_for_students') or '').strip()
-    duration_minutes = data.get('duration_minutes', submission.duration_minutes) or 180
+    raw_duration = data.get('duration_minutes')
 
     if not teacher_name:
         return JsonResponse({'status': 'error', 'message': 'Teacher Full Name is required.'}, status=400)
@@ -352,10 +357,19 @@ def teacher_submit_portion_api(request, token):
             'message': 'At least one complete Question Paper Blueprint row is required.'
         }, status=400)
 
-    try:
-        parsed_duration = int(duration_minutes)
-    except (ValueError, TypeError):
-        parsed_duration = 180
+    if raw_duration is None:
+        parsed_duration = submission.duration_minutes or 0
+    else:
+        try:
+            parsed_duration = int(raw_duration)
+        except (ValueError, TypeError):
+            parsed_duration = 0
+
+    if parsed_duration <= 0:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Please enter Exam Duration (Minutes) greater than 0.'
+        }, status=400)
 
     now = timezone.now()
     copy_target_ids = data.get('copy_to_divisions', [])
@@ -1016,6 +1030,7 @@ def teacher_submissions_status_api(request):
             'exam_id',
             'exam__title',
             'exam__is_active',
+            'exam__hide_target_before_submission',
             'division_ref_id',
             'division_ref__standard',
             'division_ref__division_name',
@@ -1041,6 +1056,7 @@ def teacher_submissions_status_api(request):
             'exam_id': sub.exam_id,
             'exam_title': sub.exam.title,
             'is_exam_active': sub.exam.is_active,
+            'hide_target_before_submission': sub.exam.hide_target_before_submission,
             'class_name': sub.display_class_name,
             'subject_name': sub.subject_name,
             'teacher_name': _clean_teacher_name(sub.status, sub.teacher_name),

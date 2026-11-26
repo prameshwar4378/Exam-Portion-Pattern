@@ -127,10 +127,16 @@
                 <div class="col-6 col-sm-3">
                     <label class="form-label font-semibold">Total Marks</label>
                     {{ form.total_marks }}
+                    {% if not submission.has_target_marks %}
+                        <div class="form-text small">Auto from blueprint below</div>
+                    {% endif %}
                 </div>
                 <div class="col-6 col-sm-3">
-                    <label class="form-label font-semibold">Duration (Mins)</label>
+                    <label class="form-label font-semibold">Duration (Mins) <span class="text-danger">*</span></label>
                     {{ form.duration_minutes }}
+                    {% if not submission.has_target_duration %}
+                        <div class="form-text small text-primary">Enter exam time in mins</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
